@@ -1,0 +1,26 @@
+{
+  "name": "bw-chk",
+  "version": "0.0.1",
+  "description": "Parses uncompressed Broodwar map files (scenario.chk).",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neivv/bw-chk"
+  },
+  "keywords": [
+    "scenario.chk",
+    "starcraft"
+  ],
+  "author": "Markus Heikkinen <ittevien@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "iconv-lite": "^0.4.13"
+  },
+  "devDependencies": {
+    "bl": "^1.0.1",
+    "scm-extractor": "git+https://github.com/tec27/scm-extractor.git"
+  }
+}
