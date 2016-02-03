@@ -57,8 +57,19 @@ export default class Chk {
     [this.title, this.description] = this._parseScenarioProperties(sections.get('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.get('ERA\x20'))
-    this.size = this._parseDimensions(sections.get('DIM\x20'))
-    this.forces = this._parseForces(sections.get('FORC'), sections.get('OWNR'), sections.get('SIDE'))
+    this.size = this._parseDimensions(sections.get('DIM\x20'));
+    [this.forces, this._maxMeleePlayers] =
+      this._parsePlayers(sections.get('FORC'), sections.get('OWNR'), sections.get('SIDE'))
+  }
+
+  maxPlayers(ums) {
+    if (ums) {
+      return this.forces.reduce((accum, force) => {
+        return accum + force.players.filter(player => !player.computer).length
+      }, 0)
+    } else {
+      return this._maxMeleePlayers
+    }
   }
 
   // Returns string indices [mapTitle, mapDescription]
@@ -79,7 +90,7 @@ export default class Chk {
   }
 
   // Respective chk sections are FORC, OWNR, SIDE.
-  _parseForces(forceData, playerData, raceData) {
+  _parsePlayers(forceData, playerData, raceData) {
     if (forceData.length < 20) return
 
     let forces = [{}, {}, {}, {}]
@@ -89,14 +100,21 @@ export default class Chk {
       forces[i].flags = this._strings.get(forceData.readUInt8(16 + i))
       forces[i].players = []
     }
+    let maxPlayers = 0
     for (let i = 0; i < 8; i++) {
       const player = this._parsePlayer(i, playerData, raceData)
       if (player !== null) {
+        maxPlayers += 1
         const playerForce = forceData.readUInt8(i)
-        forces[playerForce].players.push(player)
+        // If player does not belong in any of the 4 forces,
+        // their slot is not available in UMS games, but
+        // otherwise it works fine.
+        if (playerForce < 4) {
+          forces[playerForce].players.push(player)
+        }
       }
     }
-    return forces
+    return [forces, maxPlayers]
   }
 
   // Returns null if the player is inactive.
