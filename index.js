@@ -21,7 +21,7 @@ const SECTION_TYPES = {
   'MTXM': { type: SECTION_PARTIAL_OVERWRITE },
   'STR\x20': { type: SECTION_PARTIAL_OVERWRITE, minSize: 2 },
   'ERA\x20': { type: SECTION_FULL_OVERWRITE, minSize: 2, maxSize: 2 },
-  'FORC': { type: SECTION_FULL_OVERWRITE, minSize: 20, maxSize: 20 },
+  'FORC': { type: SECTION_FULL_OVERWRITE, maxSize: 20 },
   'OWNR': { type: SECTION_FULL_OVERWRITE, minSize: 12, maxSize: 12 },
   'SIDE': { type: SECTION_FULL_OVERWRITE, minSize: 8, maxSize: 8 },
   'SPRP': { type: SECTION_FULL_OVERWRITE, minSize: 4, maxSize: 4 },
@@ -128,8 +128,16 @@ export default class Chk {
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))
     this.size = this._parseDimensions(sections.section('DIM\x20'));
+    // FORC gets zero-padded if it is smaller than 14 bytes.
+    // Do any other sections?
+    let forceSection = sections.section('FORC')
+    if (forceSection.length < 20) {
+      const oldLength = forceSection.length
+      forceSection = Buffer.concat([forceSection, new Buffer(20 - oldLength)])
+      forceSection.fill(0, oldLength)
+    }
     [this.forces, this._maxMeleePlayers] =
-      this._parsePlayers(sections.section('FORC'), sections.section('OWNR'), sections.section('SIDE'))
+      this._parsePlayers(forceSection, sections.section('OWNR'), sections.section('SIDE'))
   }
 
   maxPlayers(ums) {

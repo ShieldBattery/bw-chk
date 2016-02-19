@@ -38,6 +38,14 @@ test('Weird forces', async function(t) {
   t.deepEqual(map.maxPlayers(false), 8)
 })
 
+test('Incomplete forces', async function(t) {
+  const map = await getMap('forces2.chk')
+  t.plan(3)
+  t.deepEqual(map.forces[0].players.length, 2)
+  t.deepEqual(map.maxPlayers(false), 2)
+  t.deepEqual(map.maxPlayers(true), 0)
+})
+
 test('Section abuse', async function(t) {
   const map = await getMap('sections.chk')
   t.plan(2)
