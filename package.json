@@ -4,7 +4,7 @@
   "description": "Parses uncompressed Broodwar map files (scenario.chk).",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "babel-tape-runner ./test/*.js"
   },
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
     "iconv-lite": "^0.4.13"
   },
   "devDependencies": {
+    "babel-tape-runner": "^2.0.0",
     "bl": "^1.0.1",
-    "scm-extractor": "^1.0.4"
+    "scm-extractor": "^1.0.4",
+    "tape": "^4.4.0"
   }
 }
