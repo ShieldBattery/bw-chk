@@ -1,7 +1,8 @@
 "use strict";
 
 import iconv from 'iconv-lite'
-
+import fs from 'fs'
+import BufferList from 'bl'
 
 // Currently read sections.
 // If a section is not here, it will be ignored by getSections().
@@ -138,6 +139,7 @@ export default class Chk {
     }
     [this.forces, this._maxMeleePlayers] =
       this._parsePlayers(forceSection, sections.section('OWNR'), sections.section('SIDE'))
+    this._tiles = sections.section('MTXM')
   }
 
   maxPlayers(ums) {
@@ -148,6 +150,76 @@ export default class Chk {
     } else {
       return this._maxMeleePlayers
     }
+  }
+
+  // Returns a 24-bit RGB buffer containing the image or returns undefined.
+  minimapImage(tilesets, width, height) {
+    const tileset = tilesets._tilesets[this.tileset]
+    if (!tileset) {
+      return
+    }
+    const tilegroupData = tileset[0]
+    const megatileData = tileset[1]
+    const minitileData = tileset[2]
+    const palette = tileset[3]
+    // Megatiles are constructed from 4x4 minitiles,
+    // which are constructed from 8x8 pixels.
+    // Bw always renders the pixel #55 (7, 6) of a minitile,
+    // so we do the same here.
+    // However, bw also always renders only either with pixel:megatile ratio
+    // of 1:1, 1:2 or 2:1; this code accepts any ratios because why not.
+    // (In other words, bw's algorithm would only have widthAdd/heightAdd of 4, 8 or 2)
+    const widthMini = this.size[0] * 4
+    const heightMini = this.size[1] * 4
+    // How many minitiles are (skipped) per pixel in the image
+    const widthAdd = widthMini / width
+    const heightAdd = heightMini / height
+
+    const out = Buffer(width * height * 3)
+    let outPos = 0
+    let yPos = 0
+    for (let y = 0; y < height; y++) {
+      let xPos = 0
+      for (let x = 0; x < width; x++) {
+        const megaX = Math.floor(xPos / 4)
+        const megaY = Math.floor(yPos / 4)
+        const miniX = Math.floor(xPos % 4)
+        const miniY = Math.floor(yPos % 4)
+
+        const maptileIndex = megaY * this.size[0] + megaX;
+        if (maptileIndex * 2 + 2 > this._tiles.length) {
+          return
+        }
+        const tileId = this._tiles.readUInt16LE(maptileIndex * 2)
+
+        const tileGroup = tileId >> 4
+        const groupIndex = tileId & 0xf
+        const groupOffset = 2 + tileGroup * 0x34 + 0x12 + groupIndex * 2
+        if (groupOffset + 2 > tilegroupData.length) {
+          return
+        }
+        const megatileId = tilegroupData.readUInt16LE(groupOffset)
+
+        const minitileIndex = miniY * 4 + miniX
+        if (megatileId * 0x20 + minitileIndex * 2 + 2 > megatileData.length) {
+          return
+        }
+        // The lowest bit of minitileId is used to define if the tile is flipped,
+        // and it is ignored in minimap image.
+        const minitileId = megatileData.readUInt16LE(megatileId * 0x20 + minitileIndex * 2) >> 1
+        if (minitileId * 0x40 + 55 >= minitileData.length) {
+          return
+        }
+
+        const color = minitileData.readUInt8(minitileId * 0x40 + 55)
+        // TODO: Color cycle indices
+        palette.copy(out, outPos * 3, color * 4, color * 4 + 3)
+        xPos += widthAdd
+        outPos += 1
+      }
+      yPos += heightAdd
+    }
+    return out
   }
 
   // Returns string indices [mapTitle, mapDescription]
@@ -213,5 +285,31 @@ export default class Chk {
       default:
         return null
     }
+  }
+}
+
+export class Tilesets {
+  constructor() {
+    this._tilesets = []
+  }
+
+  async addFile(tilesetId, tilegroup, megatiles, minitiles, palette) {
+    const promises = [tilegroup, megatiles, minitiles, palette]
+      .map(filename => new Promise((res, rej) => {
+      fs.createReadStream(filename)
+        .pipe(BufferList(function(err, buf) {
+          if (err) {
+            rej(err)
+          } else {
+            res(buf)
+          }
+      }))
+    }))
+    const files = await Promise.all(promises)
+    this.addBuffer(tilesetId, files[0], files[1], files[2], files[3])
+  }
+
+  addBuffer(tilesetId, tilegroup, megatiles, minitiles, palette) {
+    this._tilesets[tilesetId] = [tilegroup, megatiles, minitiles, palette]
   }
 }
