@@ -158,33 +158,29 @@ export default class Chk {
     if (!tileset) {
       return
     }
-    const tilegroupData = tileset[0]
-    const megatileData = tileset[1]
-    const minitileData = tileset[2]
-    const palette = tileset[3]
-    // Megatiles are constructed from 4x4 minitiles,
-    // which are constructed from 8x8 pixels.
-    // Bw always renders the pixel #55 (7, 6) of a minitile,
-    // so we do the same here.
-    // However, bw also always renders only either with pixel:megatile ratio
-    // of 1:1, 1:2 or 2:1; this code accepts any ratios because why not.
-    // (In other words, bw's algorithm would only have widthAdd/heightAdd of 4, 8 or 2)
-    const widthMini = this.size[0] * 4
-    const heightMini = this.size[1] * 4
-    // How many minitiles are (skipped) per pixel in the image
-    const widthAdd = widthMini / width
-    const heightAdd = heightMini / height
+    const pixelsPerMegaX = width / this.size[0]
+    const pixelsPerMegaY = height / this.size[1]
+    const pixelsPerMega = Math.max(pixelsPerMegaX, pixelsPerMegaY)
+    const scale = pixelsPerMega / 32
+    let megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
 
     const out = Buffer(width * height * 3)
     let outPos = 0
     let yPos = 0
+    const mapWidthPixels = this.size[0] * 32
+    const mapHeightPixels = this.size[1] * 32
+    const widthAdd = mapWidthPixels / width
+    const heightAdd = mapHeightPixels / height
     for (let y = 0; y < height; y++) {
+      const megaY = Math.floor(yPos / 32)
+      const pixelY = Math.floor(yPos % 32)
+      const scaledY = Math.floor(pixelY * scale)
+
       let xPos = 0
       for (let x = 0; x < width; x++) {
-        const megaX = Math.floor(xPos / 4)
-        const megaY = Math.floor(yPos / 4)
-        const miniX = Math.floor(xPos % 4)
-        const miniY = Math.floor(yPos % 4)
+        const megaX = Math.floor(xPos / 32)
+        const pixelX = Math.floor(xPos % 32)
+        const scaledX = Math.floor(pixelX * scale)
 
         const maptileIndex = megaY * this.size[0] + megaX;
         if (maptileIndex * 2 + 2 > this._tiles.length) {
@@ -195,27 +191,16 @@ export default class Chk {
         const tileGroup = tileId >> 4
         const groupIndex = tileId & 0xf
         const groupOffset = 2 + tileGroup * 0x34 + 0x12 + groupIndex * 2
-        if (groupOffset + 2 > tilegroupData.length) {
+        if (groupOffset + 2 > tileset.tilegroup.length) {
           return
         }
-        const megatileId = tilegroupData.readUInt16LE(groupOffset)
+        const megatileId = tileset.tilegroup.readUInt16LE(groupOffset)
 
-        const minitileIndex = miniY * 4 + miniX
-        if (megatileId * 0x20 + minitileIndex * 2 + 2 > megatileData.length) {
-          return
-        }
-        // The lowest bit of minitileId is used to define if the tile is flipped,
-        // and it is ignored in minimap image.
-        const minitileId = megatileData.readUInt16LE(megatileId * 0x20 + minitileIndex * 2) >> 1
-        if (minitileId * 0x40 + 55 >= minitileData.length) {
-          return
-        }
-
-        const color = minitileData.readUInt8(minitileId * 0x40 + 55)
-        // TODO: Color cycle indices
-        palette.copy(out, outPos * 3, color * 4, color * 4 + 3)
+        const megaOffset = megatileId * pixelsPerMega * pixelsPerMega * 3 +
+          (scaledY * pixelsPerMega + scaledX) * 3
+        megatiles.copy(out, outPos, megaOffset, megaOffset + 3)
         xPos += widthAdd
-        outPos += 1
+        outPos += 3
       }
       yPos += heightAdd
     }
@@ -310,6 +295,71 @@ export class Tilesets {
   }
 
   addBuffer(tilesetId, tilegroup, megatiles, minitiles, palette) {
-    this._tilesets[tilesetId] = [tilegroup, megatiles, minitiles, palette]
+    this._tilesets[tilesetId] = {
+      tilegroup: tilegroup,
+      megatiles: megatiles,
+      minitiles: minitiles,
+      palette: palette,
+      scaledMegatileCache: []
+    }
   }
+}
+
+function colorAtMega(tileset, mega, x, y) {
+  const miniX = Math.floor(x / 8)
+  const miniY = Math.floor(y / 8)
+  const colorX = Math.floor(x % 8)
+  const colorY = Math.floor(y % 8)
+  const mini = tileset.megatiles.readUInt16LE(mega * 0x20 + (miniY * 4 + miniX) * 2)
+  const flipped = mini & 1
+  const minitile = mini & 0xfffe
+
+  let color
+  if (flipped) {
+    color = tileset.minitiles.readUInt8(minitile * 0x20 + colorY * 8 + (7 - colorX))
+  } else {
+    color = tileset.minitiles.readUInt8(minitile * 0x20 + colorY * 8 + colorX)
+  }
+  return tileset.palette.slice(color * 4, color * 4 + 3)
+}
+
+// Creates an array of megatiles, where each megatile has 3 * pixelsPerMega bytes,
+// which are interpolated from all colors by simple average (or you could call it
+// specialized bilinear :p) algorithm.
+// Scaling upwards doesn't generate anything sensible.
+function generateScaledMegatiles(tileset, pixelsPerMega) {
+  const cached = tileset.scaledMegatileCache[pixelsPerMega]
+  if (cached !== undefined) {
+    return cached
+  }
+  const megatileCount = tileset.megatiles.length / 0x20
+  const out = new Buffer(pixelsPerMega * pixelsPerMega * megatileCount * 3)
+  var outPos = 0
+  const pixelsPerScaled = 32 / pixelsPerMega
+  const centeringOffset = pixelsPerScaled / 4
+  for (var i = 0; i < megatileCount; i++) {
+    var top = centeringOffset
+    var bottom = pixelsPerScaled - centeringOffset
+    for (var y = 0; y < pixelsPerMega; y++) {
+      var left = centeringOffset
+      var right = pixelsPerScaled - centeringOffset
+      for (var x = 0; x < pixelsPerMega; x++) {
+        const tl = colorAtMega(tileset, i, left, top)
+        const tr = colorAtMega(tileset, i, right, top)
+        const bl = colorAtMega(tileset, i, left, bottom)
+        const br = colorAtMega(tileset, i, right, bottom)
+        out[outPos + 0] = (tl[0] + tr[0] + bl[0] + br[0]) / 4
+        out[outPos + 1] = (tl[1] + tr[1] + bl[1] + br[1]) / 4
+        out[outPos + 2] = (tl[2] + tr[2] + bl[2] + br[2]) / 4
+        outPos += 3
+        left += pixelsPerScaled
+        right += pixelsPerScaled
+      }
+      top += pixelsPerScaled
+      bottom += pixelsPerScaled
+    }
+  }
+
+  tileset.scaledMegatileCache[pixelsPerMega] = out
+  return out
 }
