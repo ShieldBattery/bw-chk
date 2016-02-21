@@ -1,9 +1,9 @@
 "use strict";
 
-import { test } from 'tape'
+import {test} from 'tape'
 import fs from 'fs'
 import BufferList from 'bl'
-import Chk from '../'
+import Chk, {Tilesets} from '../'
 
 async function getMap(filename) {
   const buf = await new Promise((res, rej) => {
@@ -16,6 +16,15 @@ async function getMap(filename) {
     }))
   })
   return new Chk(buf)
+}
+
+async function getMapWithTerrain(filename, tilesets) {
+  const map = await getMap(filename)
+  const tilesetNames = ['badlands', 'platform', 'install',
+    'ashworld', 'jungle', 'desert', 'ice', 'twilight']
+  const path = 'bwdata/tileset/' + tilesetNames[map.tileset]
+  await tilesets.addFile(map.tileset, path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
+  return map
 }
 
 test('Simple map', async function(t) {
@@ -51,4 +60,17 @@ test('Section abuse', async function(t) {
   t.plan(2)
   t.deepEqual(map.title, '\x04S.A.T. \x06Control \x072 \x03[1.1]')
   t.deepEqual(map.size, [128, 128])
+})
+
+test('Invalid tile in MTXM', async function(t) {
+  try {
+    const tilesets = new Tilesets
+    const map = await getMapWithTerrain('minimap.chk', tilesets)
+    const minimap = map.minimapImage(tilesets, 128, 128)
+    t.plan(1)
+    t.notDeepEqual(minimap, undefined)
+  } catch (e) {
+    t.comment(e.stack)
+    throw e
+  }
 })

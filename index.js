@@ -158,9 +158,12 @@ export default class Chk {
     if (!tileset) {
       return
     }
+
     const pixelsPerMegaX = width / this.size[0]
     const pixelsPerMegaY = height / this.size[1]
-    const pixelsPerMega = Math.max(pixelsPerMegaX, pixelsPerMegaY)
+    const higher = Math.max(pixelsPerMegaX, pixelsPerMegaY)
+    const pixelsPerMega = Math.pow(2, Math.ceil(Math.log2(higher)))
+
     const scale = pixelsPerMega / 32
     let megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
 
@@ -183,18 +186,22 @@ export default class Chk {
         const scaledX = Math.floor(pixelX * scale)
 
         const maptileIndex = megaY * this.size[0] + megaX;
+        let tileId
         if (maptileIndex * 2 + 2 > this._tiles.length) {
-          return
+          tileId = 0
+        } else {
+          tileId = this._tiles.readUInt16LE(maptileIndex * 2)
         }
-        const tileId = this._tiles.readUInt16LE(maptileIndex * 2)
 
         const tileGroup = tileId >> 4
         const groupIndex = tileId & 0xf
         const groupOffset = 2 + tileGroup * 0x34 + 0x12 + groupIndex * 2
+        let megatileId
         if (groupOffset + 2 > tileset.tilegroup.length) {
-          return
+          megatileId = 0
+        } else {
+          megatileId = tileset.tilegroup.readUInt16LE(groupOffset)
         }
-        const megatileId = tileset.tilegroup.readUInt16LE(groupOffset)
 
         const megaOffset = megatileId * pixelsPerMega * pixelsPerMega * 3 +
           (scaledY * pixelsPerMega + scaledX) * 3
@@ -325,7 +332,7 @@ function colorAtMega(tileset, mega, x, y) {
 
 // Creates an array of megatiles, where each megatile has 3 * pixelsPerMega bytes,
 // which are interpolated from all colors by simple average (or you could call it
-// specialized bilinear :p) algorithm.
+// specialized bilinear :p) algorithm. pixelsPerMega must be power of 2.
 // Scaling upwards doesn't generate anything sensible.
 function generateScaledMegatiles(tileset, pixelsPerMega) {
   const cached = tileset.scaledMegatileCache[pixelsPerMega]
