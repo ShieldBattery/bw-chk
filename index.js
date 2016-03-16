@@ -194,32 +194,40 @@ export default class Chk {
     const pixelsPerMega = Math.pow(2, Math.ceil(Math.log2(higher)))
 
     const scale = pixelsPerMega / 32
-    let megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
+    const megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
 
     const out = Buffer(width * height * 3)
     let outPos = 0
     let yPos = 0
     const mapWidthPixels = this.size[0] * 32
     const mapHeightPixels = this.size[1] * 32
+    // How many bw pixels are added for each target image pixel.
+    // (Not necessarily a integer)
     const widthAdd = mapWidthPixels / width
     const heightAdd = mapHeightPixels / height
-    for (let y = 0; y < height; y++) {
+
+    const bytesPerMega = pixelsPerMega * pixelsPerMega * 3
+    const bytesPerMegaRow = pixelsPerMega * 3
+    let y = 0
+    while (y < height) {
       const megaY = Math.floor(yPos / 32)
-      const pixelY = Math.floor(yPos % 32)
-      const scaledY = Math.floor(pixelY * scale)
 
+      // How many pixels tall is the current row of tiles.
+      // Not necessarily same for all rows, if using a strange scale.
+      const megaHeight = Math.ceil(((Math.floor(yPos / 32) + 1) * 32 - yPos) / heightAdd)
+
+      const mapTilePos = megaY * this.size[0] * 2
       let xPos = 0
-      for (let x = 0; x < width; x++) {
+      let x = 0
+      while (x < width) {
         const megaX = Math.floor(xPos / 32)
-        const pixelX = Math.floor(xPos % 32)
-        const scaledX = Math.floor(pixelX * scale)
+        const megaWidth = Math.ceil(((Math.floor(xPos / 32) + 1) * 32 - xPos) / widthAdd)
 
-        const maptileIndex = megaY * this.size[0] + megaX;
         let tileId
-        if (maptileIndex * 2 + 2 > this._tiles.length) {
+        if (mapTilePos + megaX * 2 + 2 > this._tiles.length) {
           tileId = 0
         } else {
-          tileId = this._tiles.readUInt16LE(maptileIndex * 2)
+          tileId = this._tiles.readUInt16LE(mapTilePos + megaX * 2)
         }
 
         const tileGroup = tileId >> 4
@@ -231,14 +239,34 @@ export default class Chk {
         } else {
           megatileId = tileset.tilegroup.readUInt16LE(groupOffset)
         }
+        const megaBase = megatileId * bytesPerMega
 
-        const megaOffset = megatileId * pixelsPerMega * pixelsPerMega * 3 +
-          (scaledY * pixelsPerMega + scaledX) * 3
-        megatiles.copy(out, outPos, megaOffset, megaOffset + 3)
-        xPos += widthAdd
-        outPos += 3
+        // Draw the tile.
+        let writePos = outPos + x * 3
+        let currentTileY = yPos % 32
+        const currentTileLeft = xPos % 32
+        for (let tileY = 0; tileY < megaHeight; tileY++) {
+          const scaledY = Math.floor(currentTileY * scale)
+          const megaLineBase = megaBase + scaledY * bytesPerMegaRow
+
+          let currentTileX = currentTileLeft
+          for (let tileX = 0; tileX < megaWidth; tileX += 1) {
+            const megaOffset = megaLineBase + Math.floor(currentTileX * scale) * 3
+            out[writePos] = megatiles[megaOffset]
+            out[writePos + 1] = megatiles[megaOffset + 1]
+            out[writePos + 2] = megatiles[megaOffset + 2]
+            writePos += 3
+            currentTileX += widthAdd
+          }
+          currentTileY += heightAdd
+          writePos += (width - megaWidth) * 3
+        }
+        x += megaWidth
+        xPos += megaWidth * widthAdd
       }
-      yPos += heightAdd
+      yPos += megaHeight * heightAdd
+      y += megaHeight
+      outPos += width * megaHeight * 3
     }
 
     if (sprites) {
