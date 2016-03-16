@@ -3,6 +3,9 @@
 import iconv from 'iconv-lite'
 import fs from 'fs'
 import BufferList from 'bl'
+import SpriteGroup from './grp'
+
+export { SpriteGroup }
 
 // Currently read sections.
 // If a section is not here, it will be ignored by getSections().
@@ -30,6 +33,27 @@ const SECTION_TYPES = {
   'UNIT': { type: SECTION_APPEND },
   'THG2': { type: SECTION_APPEND },
 }
+
+const UNIT_ID_MINERAL1 = 176
+const UNIT_ID_MINERAL3 = 178
+const UNIT_ID_GEYSER = 188
+
+const NEUTRAL_PLAYER = 11
+// The colors are stored in tunit.pcx
+const PLAYER_COLORS = [
+  [0x6f, 0x17, 0x17, 0x62, 0x5e, 0xab, 0xaa, 0xa8],
+  [0xa5, 0xa2, 0xa2, 0x2d, 0xa0, 0x2a, 0x29, 0x28],
+  [0x9f, 0x9e, 0x9e, 0x9e, 0x9d, 0x9d, 0x9d, 0xb6],
+  [0xa4, 0xa4, 0xa4, 0xa3, 0xa1, 0xa1, 0xa1, 0x5a],
+  [0x9c, 0xb3, 0x1c, 0x1a, 0x15, 0x12, 0x59, 0x56],
+  [0x13, 0x12, 0x12, 0x5c, 0x5c, 0x59, 0x58, 0x56],
+  [0x54, 0x53, 0x51, 0x4e, 0x96, 0x92, 0x90, 0x43],
+  [0x87, 0xa7, 0xa6, 0x81, 0x65, 0x61, 0x5c, 0x56],
+  [0xb9, 0xb8, 0xb8, 0xb8, 0xb7, 0xb7, 0xb7, 0xb6],
+  [0x88, 0x88, 0x84, 0x83, 0x81, 0x93, 0x63, 0x44],
+  [0x67, 0x72, 0x83, 0x82, 0x6b, 0x19, 0x16, 0x12],
+  [0x33, 0x33, 0x31, 0x31, 0x2d, 0x2d, 0xa0, 0x29],
+]
 
 class ChkError extends Error {
   constructor(desc) {
@@ -128,7 +152,7 @@ export default class Chk {
     [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))
-    this.size = this._parseDimensions(sections.section('DIM\x20'));
+    this.size = this._parseDimensions(sections.section('DIM\x20'))
     // FORC gets zero-padded if it is smaller than 14 bytes.
     // Do any other sections?
     let forceSection = sections.section('FORC')
@@ -140,6 +164,8 @@ export default class Chk {
     [this.forces, this._maxMeleePlayers] =
       this._parsePlayers(forceSection, sections.section('OWNR'), sections.section('SIDE'))
     this._tiles = sections.section('MTXM')
+
+    this.units = this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
   }
 
   maxPlayers(ums) {
@@ -153,10 +179,13 @@ export default class Chk {
   }
 
   // Returns a 24-bit RGB buffer containing the image or returns undefined.
-  minimapImage(tilesets, width, height) {
+  async minimapImage(tilesets, sprites, width, height) {
     const tileset = tilesets._tilesets[this.tileset]
     if (!tileset) {
       return
+    }
+    if (!sprites) {
+      sprites = new SpriteGroup()
     }
 
     const pixelsPerMegaX = width / this.size[0]
@@ -211,7 +240,44 @@ export default class Chk {
       }
       yPos += heightAdd
     }
+
+    if (sprites) {
+      const scaleX = width / mapWidthPixels
+      const scaleY = height / mapHeightPixels
+      await this._renderSprites(sprites, tileset.palette, out, width, height, scaleX, scaleY)
+    }
     return out
+  }
+
+  async _renderSprites(sprites, palette, surface, width, height, scaleX, scaleY) {
+    // TODO: Could order these correctly
+    // Make a copy of palette to change the player colors as needed.
+    const localPalette = new Buffer(palette)
+    for (const unit of this.units) {
+      setToPlayerPalette(unit.player, localPalette)
+      const sprite = await sprites.unitSprite(unit.unitId)
+      const x = unit.x * scaleX
+      const y = unit.y * scaleY
+      let frame = 0
+      if (unit.resourceAmt) {
+        // Bw doesn't actually hardcode the frames,
+        // it calls an iscript animation that sets the frame.
+        if (unit.resourceAmt >= 750) {
+          frame = 0
+        } else if (unit.resourceAmt >= 500) {
+          frame = 1
+        } else if (unit.resourceAmt >= 250) {
+          frame = 2
+        } else {
+          frame = 3
+        }
+      }
+      // Another iscript thing.
+      if (unit.unitId === UNIT_ID_GEYSER) {
+        frame = this.tileset
+      }
+      sprite.render(frame, localPalette, surface, x, y, width, height, scaleX, scaleY)
+    }
   }
 
   // Returns string indices [mapTitle, mapDescription]
@@ -277,6 +343,37 @@ export default class Chk {
       default:
         return null
     }
+  }
+
+  _parseUnits(unitData, spriteData) {
+    const units = []
+    let pos = 0
+    while (pos + 36 <= unitData.length) {
+      const x = unitData.readUInt16LE(pos + 4)
+      const y = unitData.readUInt16LE(pos + 6)
+      const unitId = unitData.readUInt16LE(pos + 8)
+      const player = unitData.readUInt8(pos + 16)
+      if ((unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) || unitId === UNIT_ID_GEYSER) {
+        const resourceAmt = unitData.readUInt32LE(pos + 20)
+        units.push({x, y, unitId, player, resourceAmt})
+      } else {
+        units.push({x, y, unitId, player})
+      }
+      pos += 36
+    }
+
+    pos = 0
+    while (pos + 10 <= spriteData.length) {
+      const player = spriteData.readUInt8(pos + 6)
+      if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0 && player === NEUTRAL_PLAYER) {
+        const x = spriteData.readUInt16LE(pos + 2)
+        const y = spriteData.readUInt16LE(pos + 4)
+        const unitId = spriteData.readUInt16LE(pos + 0)
+        units.push({x, y, unitId, player})
+      }
+      pos += 10
+    }
+    return units
   }
 }
 
@@ -369,4 +466,15 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
 
   tileset.scaledMegatileCache[pixelsPerMega] = out
   return out
+}
+
+function setToPlayerPalette(player, palette) {
+  if (player < PLAYER_COLORS.length) {
+    const colors = PLAYER_COLORS[player]
+    for (const entry of colors.entries()) {
+      palette[(entry[0] + 0x8) * 4 + 0] = palette[entry[1] * 4 + 0]
+      palette[(entry[0] + 0x8) * 4 + 1] = palette[entry[1] * 4 + 1]
+      palette[(entry[0] + 0x8) * 4 + 2] = palette[entry[1] * 4 + 2]
+    }
+  }
 }

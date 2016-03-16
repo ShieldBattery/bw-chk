@@ -4,7 +4,7 @@ import BufferList from 'bl'
 import async from 'async'
 import ScmExtractor from 'scm-extractor'
 import {PNG} from 'pngjs'
-import Chk, {Tilesets} from './index.js'
+import Chk, {Tilesets, SpriteGroup} from './index.js'
 import 'process'
 
 let goodMaps = 0
@@ -18,15 +18,23 @@ const mapQueue = async.queue((filename, finish) => {
   })
 }, 5)
 
-const tileset_dir = process.argv[3] || '.'
+const dataDir = process.argv[3] || '.'
 let tilesets = new Tilesets
 async function loadTilesets() {
   const tilesetNames = ['badlands', 'platform', 'install',
     'ashworld', 'jungle', 'desert', 'ice', 'twilight']
   for (const entry of tilesetNames.entries()) {
-    const path = tileset_dir + '/' + entry[1]
+    const path = dataDir + '/tileset/' + entry[1]
     await tilesets.addFile(entry[0], path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
   }
+}
+
+const units = [[214, 'thingy/startloc.grp'], [176, 'neutral/min01.grp'],
+  [177, 'neutral/min01.grp'], [178, 'neutral/min03.grp'], [188, 'neutral/geyser.grp']]
+const sprites = new SpriteGroup
+for (const entry of units) {
+  const path = dataDir + '/unit/' + entry[1]
+  sprites.addUnitLazy(entry[0], path)
 }
 
 loadTilesets()
@@ -34,12 +42,21 @@ loadTilesets()
     console.log('Could not load tilesets: ' + err)
     tilesets = undefined
   })
-  .then(() => checkmaps(process.argv[2]), err => console.log(err))
-  .then(() => mapQueue.drain(() => {
-    console.log('Good maps: ' + goodMaps)
-    console.log('scm-extractor errors: ' + scmExErrs)
-    console.log('bw-chk errors: ' + chkErrs)
-  }))
+  .then(() => checkmaps(process.argv[2]), err => {
+    checkmaps(process.argv[2])
+    console.log(err)
+  })
+  .then(() => {
+    const finish = () => {
+      console.log('Good maps: ' + goodMaps)
+      console.log('scm-extractor errors: ' + scmExErrs)
+      console.log('bw-chk errors: ' + chkErrs)
+    }
+    mapQueue.drain = finish
+    if (quque.idle()) {
+      finish()
+    }
+  })
 
 function checkmap(filename) {
   async function writeImage(image, image_filename) {
@@ -66,8 +83,8 @@ function checkmap(filename) {
     try {
       const map = new Chk(buf)
       if (tilesets !== undefined) {
-        for (const mul of [1, 2, 4]) {
-          const minimap = map.minimapImage(tilesets, map.size[0] * mul, map.size[1] * mul)
+        for (const mul of [8]) {
+          const minimap = await map.minimapImage(tilesets, sprites, map.size[0] * mul, map.size[1] * mul)
           if (minimap === undefined) {
             throw Error('Minimap fail')
           }
@@ -84,6 +101,7 @@ function checkmap(filename) {
     }
     catch (err) {
       console.log('bw-chk: ' + err + ' (' + filename + ')')
+      console.log(err.stack)
       chkErrs += 1
       return
     }
