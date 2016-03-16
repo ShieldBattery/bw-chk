@@ -87,8 +87,8 @@ export class Grp {
     }
     let w = Math.floor(img.w * scaleX)
     let h = Math.floor(img.h * scaleY)
-    let x = Math.floor(surfX + (img.x - img.w / 2) * scaleX)
-    let y = Math.floor(surfY + (img.y - img.h / 2) * scaleY)
+    let x = Math.floor(surfX - (img.w / 2) * scaleX)
+    let y = Math.floor(surfY - (img.h / 2) * scaleY)
     if (x < 0) {
       w += x
       x = 0
