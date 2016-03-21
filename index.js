@@ -293,7 +293,7 @@ export default class Chk {
       const x = unit.x * scaleX
       const y = unit.y * scaleY
       let frame = 0
-      if (unit.resourceAmt) {
+      if (unit.resourceAmt !== undefined) {
         // Bw doesn't actually hardcode the frames,
         // it calls an iscript animation that sets the frame.
         if (unit.resourceAmt >= 750) {
