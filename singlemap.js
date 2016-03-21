@@ -4,6 +4,8 @@ import BufferList from 'bl'
 import {PNG} from 'pngjs'
 import ScmExtractor from 'scm-extractor'
 import Chk, {Tilesets, SpriteGroup} from './index.js'
+import * as readline from 'readline'
+import streamToPromise from 'stream-to-promise'
 
 const out = fs.createReadStream(process.argv[2])
   .pipe(ScmExtractor())
@@ -39,13 +41,22 @@ async function printMapInfo(buf) {
     console.log('Could not load tilesets: ' + e)
   }
 
-  const units = [[214, 'thingy/startloc.grp'], [176, 'neutral/min01.grp'],
-        [177, 'neutral/min01.grp'], [178, 'neutral/min03.grp'], [188, 'neutral/geyser.grp']]
   const sprites = new SpriteGroup
-  for (const entry of units) {
-    const path = dataDir + '/unit/' + entry[1]
-    sprites.addUnitLazy(entry[0], path)
-  }
+  const unitList = fs.createReadStream('units.txt')
+  const units = readline.createInterface({ input: unitList })
+  let unitId = 0
+  units.on('line', line => {
+    sprites.addUnit(unitId, dataDir + '/unit/' + line)
+    unitId += 1
+  })
+  const spriteList = fs.createReadStream('sprites.txt')
+  const bwSprites = readline.createInterface({ input: spriteList })
+  let spriteId = 0
+  bwSprites.on('line', line => {
+    sprites.addSprite(spriteId, dataDir + '/unit/' + line)
+    spriteId += 1
+  })
+  await Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
 
   console.log('Title: ' + map.title)
   console.log('Description: ' + map.description)

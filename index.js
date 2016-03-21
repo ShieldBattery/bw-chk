@@ -111,7 +111,6 @@ function getSections(buf) {
         sections.set(sectionId, buffer)
       }
     }
-    //console.log(`Section ${sectionId} @ ${pos}, len ${length}`)
     pos += length + 8
   }
   return sections
@@ -163,9 +162,10 @@ export default class Chk {
     }
     [this.forces, this._maxMeleePlayers] =
       this._parsePlayers(forceSection, sections.section('OWNR'), sections.section('SIDE'))
-    this._tiles = sections.section('MTXM')
+    this._tiles = sections.section('MTXM');
 
-    this.units = this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
+    [this.units, this.sprites] =
+      this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
   }
 
   maxPlayers(ums) {
@@ -279,11 +279,17 @@ export default class Chk {
 
   async _renderSprites(sprites, palette, surface, width, height, scaleX, scaleY) {
     // TODO: Could order these correctly
+    for (const sprite of this.sprites) {
+      const grp = await sprites.getSprite(sprite.spriteId)
+      const x = sprite.x * scaleX
+      const y = sprite.y * scaleY
+      grp.render(0, palette, surface, x, y, width, height, scaleX, scaleY)
+    }
     // Make a copy of palette to change the player colors as needed.
     const localPalette = new Buffer(palette)
     for (const unit of this.units) {
       setToPlayerPalette(unit.player, localPalette)
-      const sprite = await sprites.unitSprite(unit.unitId)
+      const sprite = await sprites.getUnit(unit.unitId)
       const x = unit.x * scaleX
       const y = unit.y * scaleY
       let frame = 0
@@ -375,6 +381,7 @@ export default class Chk {
 
   _parseUnits(unitData, spriteData) {
     const units = []
+    const sprites = []
     let pos = 0
     while (pos + 36 <= unitData.length) {
       const x = unitData.readUInt16LE(pos + 4)
@@ -393,15 +400,22 @@ export default class Chk {
     pos = 0
     while (pos + 10 <= spriteData.length) {
       const player = spriteData.readUInt8(pos + 6)
-      if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0 && player === NEUTRAL_PLAYER) {
+      if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0) {
+        if (player === NEUTRAL_PLAYER) {
+          const x = spriteData.readUInt16LE(pos + 2)
+          const y = spriteData.readUInt16LE(pos + 4)
+          const unitId = spriteData.readUInt16LE(pos + 0)
+          units.push({x, y, unitId, player})
+        }
+      } else {
         const x = spriteData.readUInt16LE(pos + 2)
         const y = spriteData.readUInt16LE(pos + 4)
-        const unitId = spriteData.readUInt16LE(pos + 0)
-        units.push({x, y, unitId, player})
+        const spriteId = spriteData.readUInt16LE(pos + 0)
+        sprites.push({x, y, spriteId})
       }
       pos += 10
     }
-    return units
+    return [units, sprites]
   }
 }
 

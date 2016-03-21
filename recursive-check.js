@@ -6,6 +6,8 @@ import ScmExtractor from 'scm-extractor'
 import {PNG} from 'pngjs'
 import Chk, {Tilesets, SpriteGroup} from './index.js'
 import 'process'
+import * as readline from 'readline'
+import streamToPromise from 'stream-to-promise'
 
 let goodMaps = 0
 let scmExErrs = 0
@@ -29,17 +31,28 @@ async function loadTilesets() {
   }
 }
 
-const units = [[214, 'thingy/startloc.grp'], [176, 'neutral/min01.grp'],
-  [177, 'neutral/min01.grp'], [178, 'neutral/min03.grp'], [188, 'neutral/geyser.grp']]
-const sprites = new SpriteGroup
-for (const entry of units) {
-  const path = dataDir + '/unit/' + entry[1]
-  sprites.addUnitLazy(entry[0], path)
+const sprites = new SpriteGroup()
+function loadSprites() {
+  const unitList = fs.createReadStream('units.txt')
+  const units = readline.createInterface({ input: unitList })
+  let unitId = 0
+  units.on('line', line => {
+    sprites.addUnit(unitId, dataDir + '/unit/' + line)
+    unitId += 1
+  })
+  const spriteList = fs.createReadStream('sprites.txt')
+  const bwSprites = readline.createInterface({ input: spriteList })
+  let spriteId = 0
+  bwSprites.on('line', line => {
+    sprites.addSprite(spriteId, dataDir + '/unit/' + line)
+    spriteId += 1
+  })
+  return Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
 }
 
-loadTilesets()
+Promise.all([loadSprites(), loadTilesets()])
   .then(() => {}, err => {
-    console.log('Could not load tilesets: ' + err)
+    console.log('Could not load init files: ' + err)
     tilesets = undefined
   })
   .then(() => checkmaps(process.argv[2]), err => {

@@ -87,8 +87,8 @@ export class Grp {
     }
     let w = Math.floor(img.w * scaleX)
     let h = Math.floor(img.h * scaleY)
-    let x = Math.floor(surfX - (img.w / 2) * scaleX)
-    let y = Math.floor(surfY - (img.h / 2) * scaleY)
+    let x = Math.floor(surfX + (img.x - (this._buf.readUInt16LE(2) / 2)) * scaleX)
+    let y = Math.floor(surfY + (img.y - (this._buf.readUInt16LE(4) / 2)) * scaleY)
     if (x < 0) {
       w += x
       x = 0
@@ -133,37 +133,44 @@ export class Grp {
   }
 }
 
-// Mostly just a id -> Grp mapping.
-// May be extended to work with bw sprite/image
-// ids and convert unit ids to those.
+// Mostly just a id -> key -> Grp mapping which shares
+// buffers when several ids have the same key.
+// Supports setting/getting by unit or sprite id.
 export default class GrpGroup {
   constructor() {
-    this.grps = []
+    this._grps = new Map()
+    this._units = []
+    this._sprites = []
   }
 
-  addUnit(unitId, buf) {
-    this.grps[unitId] = new Grp(buf)
+  addUnit(unitId, filename) {
+    this._units[unitId] = filename
   }
 
-  // Reads a file from filesystem when first requested
-  // Alternatively, if `filename` can be a function
-  // returning a promise returning the grp data in `Buffer`.
-  addUnitLazy(unitId, filename) {
-    this.grps[unitId] = filename
+  addSprite(spriteId, filename) {
+    this._sprites[spriteId] = filename
   }
 
   // Always returns a Grp, but if unitId was not
   // added, the Grp is empty.
-  async unitSprite(unitId) {
-    const val = this.grps[unitId]
-    if (val instanceof Grp) {
-      return val
-    } else if (typeof val === 'function') {
-      const grp = new Grp(await val())
-      this.grps[unitId] = grp
-      return grp
-    } else if (val) {
-      const io = new Promise((res, rej) => fs.createReadStream(val)
+  async getUnit(unitId) {
+    return this._getGrp(this._units[unitId])
+  }
+
+  async getSprite(spriteId) {
+    return this._getGrp(this._sprites[spriteId])
+  }
+
+  async _getGrp(key) {
+    if (key === undefined) {
+      return new Grp()
+    }
+
+    const value = this._grps.get(key)
+    if (value !== undefined) {
+      return value
+    } else {
+      const io = new Promise((res, rej) => fs.createReadStream(key)
         .pipe(BufferList(function(err, buf) {
           if (err) {
             rej(err)
@@ -171,16 +178,9 @@ export default class GrpGroup {
             res(buf)
           }
         })))
-      try {
-        const grp = new Grp(await io)
-        this.grps[unitId] = grp
-        return grp
-      } catch (err) {
-        this.grps[unitId] = null
-        return new Grp()
-      }
-    } else {
-      return new Grp()
+      const grp = new Grp(await io)
+      this._grps.set(key, grp)
+      return grp
     }
   }
 }
