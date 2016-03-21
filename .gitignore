@@ -1,3 +1,5 @@
 node_modules
 bwdata
-images
+examples/images
+examples/extracted.chk
+examples/minimap.png

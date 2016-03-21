@@ -55,6 +55,9 @@ const PLAYER_COLORS = [
   [0x33, 0x33, 0x31, 0x31, 0x2d, 0x2d, 0xa0, 0x29],
 ]
 
+const TILESET_NAMES = ['badlands', 'platform', 'install', 'ashworld', 'jungle', 'desert', 'ice', 'twilight']
+const TILESET_NICE_NAMES = ['Badlands', 'Space', 'Installation', 'Ashworld', 'Jungle', 'Desert', 'Ice', 'Wwilight']
+
 class ChkError extends Error {
   constructor(desc) {
     super(desc)
@@ -151,6 +154,8 @@ export default class Chk {
     [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))
+    this.tilesetName = TILESET_NICE_NAMES[this.tileset]
+
     this.size = this._parseDimensions(sections.section('DIM\x20'))
     // FORC gets zero-padded if it is smaller than 14 bytes.
     // Do any other sections?
@@ -179,10 +184,14 @@ export default class Chk {
   }
 
   // Returns a 24-bit RGB buffer containing the image or returns undefined.
-  async minimapImage(tilesets, sprites, width, height) {
+  async image(tilesets, sprites, width, height) {
+    if (tilesets._incompeleteTilesets[this.tileset]) {
+      await tilesets._incompeleteTilesets[this.tileset]
+      tilesets._incompeleteTilesets[this.tileset] = null
+    }
     const tileset = tilesets._tilesets[this.tileset]
     if (!tileset) {
-      return
+      throw new Error(`Tileset ${this.tileset} has not been loaded`)
     }
     if (!sprites) {
       sprites = new SpriteGroup()
@@ -422,9 +431,18 @@ export default class Chk {
 export class Tilesets {
   constructor() {
     this._tilesets = []
+    this._incompeleteTilesets = []
   }
 
-  async addFile(tilesetId, tilegroup, megatiles, minitiles, palette) {
+  init(dataDir) {
+    const promises = Array.from(TILESET_NAMES.entries()).map(entry => {
+      const path = dataDir + '/tileset/' + entry[1]
+      return this.addFiles(entry[0], path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
+    })
+    return Promise.all(promises)
+  }
+
+  addFiles(tilesetId, tilegroup, megatiles, minitiles, palette) {
     const promises = [tilegroup, megatiles, minitiles, palette]
       .map(filename => new Promise((res, rej) => {
       fs.createReadStream(filename)
@@ -436,11 +454,13 @@ export class Tilesets {
           }
       }))
     }))
-    const files = await Promise.all(promises)
-    this.addBuffer(tilesetId, files[0], files[1], files[2], files[3])
+    const promise = Promise.all(promises)
+      .then(files => this.addBuffers(tilesetId, files[0], files[1], files[2], files[3]))
+    this._incompeleteTilesets[tilesetId] = promise
+    return promise
   }
 
-  addBuffer(tilesetId, tilegroup, megatiles, minitiles, palette) {
+  addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
     this._tilesets[tilesetId] = {
       tilegroup: tilegroup,
       megatiles: megatiles,

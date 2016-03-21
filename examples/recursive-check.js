@@ -1,10 +1,14 @@
+// singlemap.js directory [<data directory>]
+// Checks all maps in the directory and subdirectories, and makes sure they parse.
+// Also generates images for all of them. Running this script on a 3000+ map
+// directory can take over an hour, and generate several gigabytes of pngs.
 import fs from 'fs'
 import path from 'path'
 import BufferList from 'bl'
 import async from 'async'
 import ScmExtractor from 'scm-extractor'
 import {PNG} from 'pngjs'
-import Chk, {Tilesets, SpriteGroup} from './index.js'
+import Chk, {Tilesets, SpriteGroup} from '../'
 import 'process'
 import * as readline from 'readline'
 import streamToPromise from 'stream-to-promise'
@@ -21,15 +25,8 @@ const mapQueue = async.queue((filename, finish) => {
 }, 5)
 
 const dataDir = process.argv[3] || '.'
-let tilesets = new Tilesets
-async function loadTilesets() {
-  const tilesetNames = ['badlands', 'platform', 'install',
-    'ashworld', 'jungle', 'desert', 'ice', 'twilight']
-  for (const entry of tilesetNames.entries()) {
-    const path = dataDir + '/tileset/' + entry[1]
-    await tilesets.addFile(entry[0], path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
-  }
-}
+const tilesets = new Tilesets
+tilesets.init(dataDir)
 
 const sprites = new SpriteGroup()
 function loadSprites() {
@@ -50,7 +47,7 @@ function loadSprites() {
   return Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
 }
 
-Promise.all([loadSprites(), loadTilesets()])
+loadSprites()
   .then(() => {}, err => {
     console.log('Could not load init files: ' + err)
     tilesets = undefined
@@ -97,7 +94,7 @@ function checkmap(filename) {
       const map = new Chk(buf)
       if (tilesets !== undefined) {
         for (const mul of [8]) {
-          const minimap = await map.minimapImage(tilesets, sprites, map.size[0] * mul, map.size[1] * mul)
+          const minimap = await map.image(tilesets, sprites, map.size[0] * mul, map.size[1] * mul)
           if (minimap === undefined) {
             throw Error('Minimap fail')
           }

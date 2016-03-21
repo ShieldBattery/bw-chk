@@ -18,15 +18,6 @@ async function getMap(filename) {
   return new Chk(buf)
 }
 
-async function getMapWithTerrain(filename, tilesets) {
-  const map = await getMap(filename)
-  const tilesetNames = ['badlands', 'platform', 'install',
-    'ashworld', 'jungle', 'desert', 'ice', 'twilight']
-  const path = 'bwdata/tileset/' + tilesetNames[map.tileset]
-  await tilesets.addFile(map.tileset, path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
-  return map
-}
-
 test('Simple map', async function(t) {
   const map = await getMap('simple.chk')
   t.plan(5)
@@ -65,8 +56,9 @@ test('Section abuse', async function(t) {
 test('Invalid tile in MTXM', async function(t) {
   try {
     const tilesets = new Tilesets
-    const map = await getMapWithTerrain('minimap.chk', tilesets)
-    const minimap = map.minimapImage(tilesets, 128, 128)
+    tilesets.init('bwdata')
+    const map = await getMap('minimap.chk')
+    const minimap = map.image(tilesets, undefined, 128, 128)
     t.plan(1)
     t.notDeepEqual(minimap, undefined)
   } catch (e) {
