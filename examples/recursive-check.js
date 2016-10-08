@@ -63,10 +63,11 @@ loadSprites()
       console.log('bw-chk errors: ' + chkErrs)
     }
     mapQueue.drain = finish
-    if (quque.idle()) {
+    if (mapQueue.idle()) {
       finish()
     }
   })
+  .catch(err => console.log(err))
 
 function checkmap(filename) {
   async function writeImage(image, image_filename) {
