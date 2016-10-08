@@ -34,6 +34,8 @@ const SECTION_TYPES = {
   'THG2': { type: SECTION_APPEND },
 }
 
+const SPRITE_ID_MAX = 516
+
 const UNIT_ID_RHYNADON = 89
 const UNIT_ID_BENGALAAS = 90
 const UNIT_ID_SCANTID = 93
@@ -44,6 +46,7 @@ const UNIT_ID_MINERAL1 = 176
 const UNIT_ID_MINERAL3 = 178
 const UNIT_ID_GEYSER = 188
 const UNIT_ID_START_LOCATION = 214
+const UNIT_ID_MAX = 227
 
 const isResource = unitId => (unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) ||
   unitId === UNIT_ID_GEYSER
@@ -392,7 +395,9 @@ export default class Chk {
 
     // TODO: Could order these correctly
     for (const sprite of this.sprites) {
-      const grp = await fileAccess.sprite(sprite.spriteId)
+      // Draw invalid sprites as the ashworld doodad of death.
+      const drawnSpriteId = sprite.spriteId > SPRITE_ID_MAX ? 0 : sprite.spriteId
+      const grp = await fileAccess.sprite(drawnSpriteId)
       const x = sprite.x * scaleX
       const y = sprite.y * scaleY
       grp.render(0, palette, surface, x, y, width, height, scaleX, scaleY)
@@ -404,7 +409,10 @@ export default class Chk {
         continue
       }
       setToPlayerPalette(unit.player, localPalette)
-      const sprite = await fileAccess.unit(unit.unitId)
+
+      // Maps can contain invalid units, we'll just render them as marines
+      const drawnUnitId = unit.unitId > UNIT_ID_MAX ? 0 : unit.unitId
+      const sprite = await fileAccess.unit(drawnUnitId)
       const x = unit.x * scaleX
       const y = unit.y * scaleY
       let frame = 0
@@ -501,17 +509,21 @@ export default class Chk {
   _parseUnits(unitData, spriteData) {
     const units = []
     const sprites = []
+    const width = this.size[0] * 32
+    const height = this.size[1] * 32
     let pos = 0
     while (pos + 36 <= unitData.length) {
       const x = unitData.readUInt16LE(pos + 4)
       const y = unitData.readUInt16LE(pos + 6)
       const unitId = unitData.readUInt16LE(pos + 8)
       const player = unitData.readUInt8(pos + 16)
-      if (isResource(unitId)) {
-        const resourceAmt = unitData.readUInt32LE(pos + 20)
-        units.push({x, y, unitId, player, resourceAmt})
-      } else {
-        units.push({x, y, unitId, player})
+      if (x < width && y < height) {
+        if (isResource(unitId)) {
+          const resourceAmt = unitData.readUInt32LE(pos + 20)
+          units.push({x, y, unitId, player, resourceAmt})
+        } else {
+          units.push({x, y, unitId, player})
+        }
       }
       pos += 36
     }
@@ -520,13 +532,15 @@ export default class Chk {
     while (pos + 10 <= spriteData.length) {
       const x = spriteData.readUInt16LE(pos + 2)
       const y = spriteData.readUInt16LE(pos + 4)
-      if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0) {
-        const unitId = spriteData.readUInt16LE(pos + 0)
-        const player = spriteData.readUInt8(pos + 6)
-        units.push({x, y, unitId, player, sprite: true})
-      } else {
-        const spriteId = spriteData.readUInt16LE(pos + 0)
-        sprites.push({x, y, spriteId})
+      if (x < width && y < height) {
+        if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0) {
+          const unitId = spriteData.readUInt16LE(pos + 0)
+          const player = spriteData.readUInt8(pos + 6)
+          units.push({x, y, unitId, player, sprite: true})
+        } else {
+          const spriteId = spriteData.readUInt16LE(pos + 0)
+          sprites.push({x, y, spriteId})
+        }
       }
       pos += 10
     }

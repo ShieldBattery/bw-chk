@@ -64,3 +64,29 @@ test('Invalid tile in MTXM', async t => {
     throw e
   }
 })
+
+test('Invalid unit', async t => {
+  try {
+    const map = await getMap('invalid_unit.chk')
+    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
+    t.plan(1)
+    t.notDeepEqual(minimap, undefined)
+  } catch (e) {
+    t.comment(e.stack)
+    throw e
+  }
+})
+
+test('Out-of-bounds sprite', async t => {
+  try {
+    // The map has 11 sprites but one of them is an invalid, out-of-bounds one
+    const map = await getMap('oob_sprite.chk')
+    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
+    t.plan(2)
+    t.notDeepEqual(minimap, undefined)
+    t.deepEqual(map.sprites.length, 10)
+  } catch (e) {
+    t.comment(e.stack)
+    throw e
+  }
+})
