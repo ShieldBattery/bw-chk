@@ -1,7 +1,7 @@
 'use strict';
 
-import Chk, {Tilesets} from '../'
 import BufferList from 'bl'
+import Chk from '../'
 import fs from 'fs'
 import {test} from 'tape'
 
@@ -55,10 +55,8 @@ test('Section abuse', async t => {
 
 test('Invalid tile in MTXM', async t => {
   try {
-    const tilesets = new Tilesets()
-    tilesets.init('bwdata')
     const map = await getMap('minimap.chk')
-    const minimap = map.image(tilesets, undefined, 128, 128)
+    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
     t.plan(1)
     t.notDeepEqual(minimap, undefined)
   } catch (e) {

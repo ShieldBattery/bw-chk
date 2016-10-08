@@ -5,17 +5,13 @@
 
 /* eslint no-console: "off" */
 
-import * as readline from 'readline'
-
-import Chk, {SpriteGroup, Tilesets} from '../'
-
 import async from 'async'
 import BufferList from 'bl'
+import Chk from '../'
 import fs from 'fs'
 import path from 'path'
 import {PNG} from 'pngjs'
 import scmExtractor from 'scm-extractor'
-import streamToPromise from 'stream-to-promise'
 
 let goodMaps = 0
 let scmExErrs = 0
@@ -28,28 +24,7 @@ const mapQueue = async.queue((filename, finish) => {
   })
 }, 5)
 
-const dataDir = process.argv[3] || '.'
-let tilesets = new Tilesets()
-tilesets.init(dataDir)
-
-const sprites = new SpriteGroup()
-function loadSprites() {
-  const unitList = fs.createReadStream('units.txt')
-  const units = readline.createInterface({ input: unitList })
-  let unitId = 0
-  units.on('line', line => {
-    sprites.addUnit(unitId, `${dataDir}/unit/${line}`)
-    unitId += 1
-  })
-  const spriteList = fs.createReadStream('sprites.txt')
-  const bwSprites = readline.createInterface({ input: spriteList })
-  let spriteId = 0
-  bwSprites.on('line', line => {
-    sprites.addSprite(spriteId, `${dataDir}/unit/${line}`)
-    spriteId += 1
-  })
-  return Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
-}
+const fileAccess = process.argv[3] ? Chk.fsFileAccess(process.argv[3]) : null
 
 function checkentry(filename) {
   return new Promise((res, rej) => {
@@ -85,15 +60,7 @@ function checkmaps(path) {
   })
 }
 
-loadSprites()
-  .then(() => {}, err => {
-    console.log(`Could not load init files: ${err}`)
-    tilesets = undefined
-  })
-  .then(() => checkmaps(process.argv[2]), err => {
-    checkmaps(process.argv[2])
-    console.log(err)
-  })
+checkmaps(process.argv[2])
   .then(() => {
     const finish = () => {
       console.log('Good maps: ' + goodMaps)
@@ -131,12 +98,9 @@ function checkmap(filename) {
   async function parseChk(buf) {
     try {
       const map = new Chk(buf)
-      if (tilesets !== undefined) {
+      if (fileAccess !== null) {
         for (const mul of [8]) {
-          const minimap = await map.image(tilesets, sprites, map.size[0] * mul, map.size[1] * mul)
-          if (minimap === undefined) {
-            throw Error('Minimap fail')
-          }
+          const minimap = await map.image(fileAccess, map.size[0] * mul, map.size[1] * mul)
           const image = new PNG({
             width: map.size[0] * mul,
             height: map.size[1] * mul,

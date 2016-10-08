@@ -4,8 +4,8 @@ import BufferList from 'bl'
 import fs from 'fs'
 import iconv from 'iconv-lite'
 import SpriteGroup from './grp'
-
-export { SpriteGroup }
+import SPRITES from './sprites.json'
+import UNITS from './units.json'
 
 // Currently read sections.
 // If a section is not here, it will be ignored by getSections().
@@ -34,9 +34,28 @@ const SECTION_TYPES = {
   'THG2': { type: SECTION_APPEND },
 }
 
+const UNIT_ID_RHYNADON = 89
+const UNIT_ID_BENGALAAS = 90
+const UNIT_ID_SCANTID = 93
+const UNIT_ID_KAKARU = 94
+const UNIT_ID_RAGNASAUR = 95
+const UNIT_ID_URSADON = 96
 const UNIT_ID_MINERAL1 = 176
 const UNIT_ID_MINERAL3 = 178
 const UNIT_ID_GEYSER = 188
+const UNIT_ID_START_LOCATION = 214
+
+const isResource = unitId => (unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) ||
+  unitId === UNIT_ID_GEYSER
+
+const isCritter = unitId => (
+  unitId === UNIT_ID_RHYNADON ||
+  unitId === UNIT_ID_BENGALAAS ||
+  unitId === UNIT_ID_RAGNASAUR ||
+  unitId === UNIT_ID_SCANTID ||
+  unitId === UNIT_ID_URSADON ||
+  unitId === UNIT_ID_KAKARU
+)
 
 const NEUTRAL_PLAYER = 11
 // The colors are stored in tunit.pcx
@@ -59,6 +78,27 @@ const TILESET_NAMES = ['badlands', 'platform', 'install', 'ashworld', 'jungle', 
       'twilight']
 const TILESET_NICE_NAMES = ['Badlands', 'Space', 'Installation', 'Ashworld', 'Jungle', 'Desert',
       'Ice', 'Twilight']
+
+// Handles accessing, decoding, and caching bw's files.
+class FileAccess {
+  constructor(cb) {
+    this.read = cb
+    this._tilesets = new Tilesets()
+    this._sprites = new SpriteGroup(UNITS, SPRITES)
+  }
+
+  async tileset(id) {
+    return await this._tilesets.tileset(id, this.read)
+  }
+
+  async unit(id) {
+    return await this._sprites.unit(id, this.read)
+  }
+
+  async sprite(id) {
+    return await this._sprites.sprite(id, this.read)
+  }
+}
 
 class ChkError extends Error {
   constructor(desc) {
@@ -185,20 +225,72 @@ export default class Chk {
     }
   }
 
-  // Returns a 24-bit RGB buffer containing the image or returns undefined.
-  async image(tilesets, sprites, width, height) {
-    if (tilesets._incompeleteTilesets[this.tileset]) {
-      await tilesets._incompeleteTilesets[this.tileset]
-      tilesets._incompeleteTilesets[this.tileset] = null
-    }
-    const tileset = tilesets._tilesets[this.tileset]
-    if (!tileset) {
-      throw new Error(`Tileset ${this.tileset} has not been loaded`)
-    }
-    if (!sprites) {
-      sprites = new SpriteGroup()
-    }
+  // Creates a FileAccess object, where `directory` contains bw's sprite and tileset files.
+  //
+  // Used for `Chk.image()`. Keeping the same object between multiple `image()` calls will
+  // cache file accesses, reducing execution time.
+  static fsFileAccess(directory) {
+    return Chk.customFileAccess(fname => (
+      new Promise((res, rej) => {
+        fs.createReadStream(directory + '/' + fname.replace(/\\/g, '/'))
+          .pipe(new BufferList((err, buf) => {
+            if (err) {
+              rej(err)
+            } else {
+              res(buf)
+            }
+          }))
+      })
+    ))
+  }
 
+  // Creates a FileAccess object with a custom file reading function `callback`.
+  //
+  // `callback` must return a `Promise`, which resolves to a `Buffer` (-like object, BufferList is
+  // fine as well), containing the file.
+  static customFileAccess(callback) {
+    return new FileAccess(callback)
+  }
+
+  // Returns a 24-bit RGB buffer containing the image or throws an `Error`.
+  //
+  // `fileAccess` is created either from `Chk.fsFileAccess(directory)` or
+  // `Chk.customFileAccess(callback)`.
+  //
+  // `options` is an object containing additional options. The currently supported options
+  // (and their defaults) are:
+  // ```
+  // {
+  //   // Whether to render only units which exist in melee games: Start locations, neutral
+  //   // resources and neutral unit sprites.
+  //   melee: false,
+  //   // Whether to render player start locations.
+  //   startLocations: true,
+  // }
+  // ```
+  async image(fileAccess, width, height, options) {
+    const opts = Object.assign({
+      melee: false,
+      startLocations: true,
+    }, options)
+    const out = Buffer.alloc(width * height * 3)
+    const tileset = await fileAccess.tileset(this.tileset)
+    this._renderTerrain(tileset, out, width, height)
+
+    const mapWidthPixels = this.size[0] * 32
+    const mapHeightPixels = this.size[1] * 32
+    const scaleX = width / mapWidthPixels
+    const scaleY = height / mapHeightPixels
+    const palette = tileset.palette
+    await this._renderSprites(fileAccess, palette, out, width, height, scaleX, scaleY, opts)
+    return out
+  }
+
+  // Renders the terrain using hopefully-somewhat-fast method, which creates
+  // low-resolution tiles and then just copies them into buffer without further scaling.
+  // A drawback to this method is that the tile boundaries are easy to recognize
+  // from the final image when there are large areas of flat terrain.
+  _renderTerrain(tileset, out, width, height) {
     const pixelsPerMegaX = width / this.size[0]
     const pixelsPerMegaY = height / this.size[1]
     const higher = Math.max(pixelsPerMegaX, pixelsPerMegaY)
@@ -207,13 +299,12 @@ export default class Chk {
     const scale = pixelsPerMega / 32
     const megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
 
-    const out = Buffer.alloc(width * height * 3)
     let outPos = 0
     let yPos = 0
-    const mapWidthPixels = this.size[0] * 32
-    const mapHeightPixels = this.size[1] * 32
     // How many bw pixels are added for each target image pixel.
     // (Not necessarily a integer)
+    const mapWidthPixels = this.size[0] * 32
+    const mapHeightPixels = this.size[1] * 32
     const widthAdd = mapWidthPixels / width
     const heightAdd = mapHeightPixels / height
 
@@ -279,19 +370,29 @@ export default class Chk {
       y += megaHeight
       outPos += width * megaHeight * 3
     }
-
-    if (sprites) {
-      const scaleX = width / mapWidthPixels
-      const scaleY = height / mapHeightPixels
-      await this._renderSprites(sprites, tileset.palette, out, width, height, scaleX, scaleY)
-    }
-    return out
   }
 
-  async _renderSprites(sprites, palette, surface, width, height, scaleX, scaleY) {
+  async _renderSprites(fileAccess, palette, surface, width, height, scaleX, scaleY, opts) {
+    const startLocationCheck = u => u.unitId !== UNIT_ID_START_LOCATION || opts.startLocations
+    const meleeCheck = u => {
+      if (!opts.melee) {
+        return true
+      }
+      if (u.sprite) {
+        return u.player === NEUTRAL_PLAYER
+      }
+      if (u.unitId === UNIT_ID_START_LOCATION) {
+        return true
+      }
+      if (u.player === NEUTRAL_PLAYER && (isResource(u.unitId) || isCritter(u.unitId))) {
+        return true
+      }
+      return false
+    }
+
     // TODO: Could order these correctly
     for (const sprite of this.sprites) {
-      const grp = await sprites.getSprite(sprite.spriteId)
+      const grp = await fileAccess.sprite(sprite.spriteId)
       const x = sprite.x * scaleX
       const y = sprite.y * scaleY
       grp.render(0, palette, surface, x, y, width, height, scaleX, scaleY)
@@ -299,8 +400,11 @@ export default class Chk {
     // Make a copy of palette to change the player colors as needed.
     const localPalette = new Buffer(palette)
     for (const unit of this.units) {
+      if (!startLocationCheck(unit) || !meleeCheck(unit)) {
+        continue
+      }
       setToPlayerPalette(unit.player, localPalette)
-      const sprite = await sprites.getUnit(unit.unitId)
+      const sprite = await fileAccess.unit(unit.unitId)
       const x = unit.x * scaleX
       const y = unit.y * scaleY
       let frame = 0
@@ -403,9 +507,7 @@ export default class Chk {
       const y = unitData.readUInt16LE(pos + 6)
       const unitId = unitData.readUInt16LE(pos + 8)
       const player = unitData.readUInt8(pos + 16)
-      const isResource = (unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) ||
-        unitId === UNIT_ID_GEYSER
-      if (isResource) {
+      if (isResource(unitId)) {
         const resourceAmt = unitData.readUInt32LE(pos + 20)
         units.push({x, y, unitId, player, resourceAmt})
       } else {
@@ -416,17 +518,13 @@ export default class Chk {
 
     pos = 0
     while (pos + 10 <= spriteData.length) {
-      const player = spriteData.readUInt8(pos + 6)
+      const x = spriteData.readUInt16LE(pos + 2)
+      const y = spriteData.readUInt16LE(pos + 4)
       if ((spriteData.readUInt16LE(pos + 8) & 0x1000) === 0) {
-        if (player === NEUTRAL_PLAYER) {
-          const x = spriteData.readUInt16LE(pos + 2)
-          const y = spriteData.readUInt16LE(pos + 4)
-          const unitId = spriteData.readUInt16LE(pos + 0)
-          units.push({x, y, unitId, player})
-        }
+        const unitId = spriteData.readUInt16LE(pos + 0)
+        const player = spriteData.readUInt8(pos + 6)
+        units.push({x, y, unitId, player, sprite: true})
       } else {
-        const x = spriteData.readUInt16LE(pos + 2)
-        const y = spriteData.readUInt16LE(pos + 4)
         const spriteId = spriteData.readUInt16LE(pos + 0)
         sprites.push({x, y, spriteId})
       }
@@ -436,39 +534,40 @@ export default class Chk {
   }
 }
 
-export class Tilesets {
+class Tilesets {
   constructor() {
     this._tilesets = []
     this._incompeleteTilesets = []
   }
 
-  init(dataDir) {
-    const promises = Array.from(TILESET_NAMES.entries()).map(entry => {
-      const path = `${dataDir}/tileset/${entry[1]}`
-      return this.addFiles(entry[0], `${path}.cv5`, `${path}.vx4`, `${path}.vr4`, `${path}.wpe`)
-    })
-    return Promise.all(promises)
+  async tileset(id, readCb) {
+    if (id >= TILESET_NAMES.length) {
+      throw Error(`Invalid tileset id: ${id}`)
+    }
+    const tileset = this._tilesets[id]
+    if (tileset) {
+      return tileset
+    }
+
+    if (!this._incompeleteTilesets[id]) {
+      this._addFiles(id, readCb)
+    }
+    await this._incompeleteTilesets[id]
+    return this._tilesets[id]
   }
 
-  addFiles(tilesetId, tilegroup, megatiles, minitiles, palette) {
-    const promises = [tilegroup, megatiles, minitiles, palette]
-      .map(filename => new Promise((res, rej) => {
-      fs.createReadStream(filename)
-        .pipe(new BufferList((err, buf) => {
-          if (err) {
-            rej(err)
-          } else {
-            res(buf)
-          }
-      }))
-    }))
+  _addFiles(tilesetId, readCb) {
+    const path = `tileset/${TILESET_NAMES[tilesetId]}`
+    const promises = ['.cv5', '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension))
     const promise = Promise.all(promises)
-      .then(files => this.addBuffers(tilesetId, files[0], files[1], files[2], files[3]))
+      .then(files => {
+        this._incompeleteTilesets[tilesetId] = null
+        this._addBuffers(tilesetId, files[0], files[1], files[2], files[3])
+      })
     this._incompeleteTilesets[tilesetId] = promise
-    return promise
   }
 
-  addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
+  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
     this._tilesets[tilesetId] = {
       tilegroup,
       megatiles,

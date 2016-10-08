@@ -6,9 +6,6 @@
 // Grp buffers are currently not validated, passing invalid
 // sprite data may result in exceptions during render() calls.
 
-import BufferList from 'bl'
-import fs from 'fs'
-
 export class Grp {
   constructor(buf) {
     this._buf = buf
@@ -137,48 +134,32 @@ export class Grp {
 // buffers when several ids have the same key.
 // Supports setting/getting by unit or sprite id.
 export default class GrpGroup {
-  constructor() {
+  constructor(units, sprites) {
     this._grps = new Map()
-    this._units = []
-    this._sprites = []
-  }
-
-  addUnit(unitId, filename) {
-    this._units[unitId] = filename
-  }
-
-  addSprite(spriteId, filename) {
-    this._sprites[spriteId] = filename
+    this._units = units
+    this._sprites = sprites
   }
 
   // Always returns a Grp, but if unitId was not
   // added, the Grp is empty.
-  async getUnit(unitId) {
-    return this._getGrp(this._units[unitId])
+  async unit(unitId, readCb) {
+    return this._getGrp(this._units[unitId], readCb)
   }
 
-  async getSprite(spriteId) {
-    return this._getGrp(this._sprites[spriteId])
+  async sprite(spriteId, readCb) {
+    return this._getGrp(this._sprites[spriteId], readCb)
   }
 
-  async _getGrp(key) {
+  async _getGrp(key, readCb) {
     if (key === undefined) {
-      return new Grp()
+      throw Error('Invalid grp')
     }
 
     const value = this._grps.get(key)
     if (value !== undefined) {
       return value
     } else {
-      const io = new Promise((res, rej) => fs.createReadStream(key)
-        .pipe(new BufferList((err, buf) => {
-          if (err) {
-            rej(err)
-          } else {
-            res(buf)
-          }
-        })))
-      const grp = new Grp(await io)
+      const grp = new Grp(await readCb('unit/' + key))
       this._grps.set(key, grp)
       return grp
     }

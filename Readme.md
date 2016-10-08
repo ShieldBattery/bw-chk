@@ -88,49 +88,41 @@ Note that even though UMS player count can also be determined from counting huma
 in `chk.forces`, melee games may allow more players than there are computer and
 human slots combined.
 
-### chk.image(tilesets, sprites, width, height)
+### chk.image(fileAccess, width, height, options)
 Asynchronously generates a 24-bit RGB `Buffer` containing a image of the map, with
 dimensions of `width` and `height`.
 
-It requires two helper classes, `Tilesets` and `SpriteGroup`, which must be initialized
-with bw's data files:
+As this requires using bw's tileset and sprite files, it is handled by using a `fileAccess` object.
+If the files have been extracted to a directory, they can be simply used with
 
-## Class: Tilesets
+```javascript
+chk.image(Chk.fsFileAccess('path/to/root/directory'), width, height)
+```
 
-Wraps the several tileset files in a single object.
+If there is a need for creating several images, using a single `fileAccess` object for all
+image() calls will cache some of the file parsing work.
 
-### tilesets.init(dataDir)
+`options` is an object containing additional options. The currently supported options
+(and their defaults) are:
+```
+{
+  // Whether to render only units which exist in melee games: Start locations, neutral
+  // resources and neutral unit sprites.
+  melee: false,
+  // Whether to render player start locations.
+  startLocations: true,
+}
+```
 
-Asynchronously loads all 8 tilesets used by bw, from the directory `dataDir`, which has
-same layout as the .mpq files. For example, if `dataDir` is `scdata`, then there should be
-`scdata/tileset/jungle.wpe`, `scdata/tileset/jungle.vx4` and so on.
+### static Chk.fsFileAccess(directory)
+Creates a FileAccess object, which can be passed to `chk.image()` for accessing bw's files which
+have been extracted to `directory`.
 
-This method returns a promise, which can be waited on, but it is not necessary as
-`chk.image` will do it anyways if necessary.
+### static Chk.customFileAccess(func)
+Creates a FileAccess object with a custom function for reading files.
 
-### tilesets.addFiles(tilesetId, cv5, vx4, vr4, wpe)
-
-Asynchronously reads the 4 tileset files from disc, and registers it to id `tilesetId`.
-
-### tilesets.addBuffers(tilesetId, cv5, vx4, vr4, wpe)
-
-Registers the 4 buffers to `tilesetId`. (Synchronous, does not parse anything)
-
-## Class: SpriteGroup
-
-Contains mapping of unit/sprite ids to .grp files used by bw.
-
-### spriteGroup.addUnit(unitId, path) spriteGroup.addSprite(spriteId, path)
-
-Registers a .grp sprite to unit or sprite id. If the sprite is not accessed during
-`chk.image()`, it will not be loaded from disk. If there are several units/sprites
-sharing the same .grp file, the file will be read only once.
-
-The path's validity is not checked, and passing invalid paths will only cause failures
-when `chk.image()` needs to render the sprite.
-
-Unless you wish to be truly dynamic and parse the units/flingy/sprites/images.dat for the
-id -> grp mapping, `examples/units.txt` and `examples/sprites.txt` have the default paths.
+The function takes in a string containing the filename (e.g. 'unit\\terran\\marine.grp'),
+and must return a promise which resolves to a `Buffer` containing the file's data.
 
 ## License
 MIT

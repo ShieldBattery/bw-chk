@@ -3,14 +3,11 @@
 
 /* eslint no-console: "off" */
 
-import Chk, {SpriteGroup, Tilesets} from '../'
-
 import BufferList from 'bl'
+import Chk from '../'
 import fs from 'fs'
 import {PNG} from 'pngjs'
-import readline from 'readline'
 import scmExtractor from 'scm-extractor'
-import streamToPromise from 'stream-to-promise'
 
 const out = fs.createReadStream(process.argv[2])
   .pipe(scmExtractor())
@@ -37,30 +34,6 @@ out.on('finish', () => {
 
 async function printMapInfo(buf) {
   const map = new Chk(buf)
-  let tilesets = new Tilesets()
-  const sprites = new SpriteGroup()
-
-  if (dataDir !== undefined) {
-    tilesets.init(dataDir)
-
-    // Load all default units/sprites. If the data directory does not contain a sprite that is
-    // needed for rendering, `chk.image` will throw when it tries to read it.
-    const unitList = fs.createReadStream('units.txt')
-    const units = readline.createInterface({ input: unitList })
-    let unitId = 0
-    units.on('line', line => {
-      sprites.addUnit(unitId, `${dataDir}/unit/${line}`)
-      unitId += 1
-    })
-    const spriteList = fs.createReadStream('sprites.txt')
-    const bwSprites = readline.createInterface({ input: spriteList })
-    let spriteId = 0
-    bwSprites.on('line', line => {
-      sprites.addSprite(spriteId, `${dataDir}/unit/${line}`)
-      spriteId += 1
-    })
-    await Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
-  }
 
   console.log('Title: ' + map.title)
   console.log('Description: ' + map.description)
@@ -77,8 +50,8 @@ async function printMapInfo(buf) {
     const minimapWidth = map.size[0] * 8
     const minimapHeight = map.size[1] * 8
     try {
-      const minimap = await map.image(tilesets, sprites, minimapWidth, minimapHeight)
-      if (minimap !== undefined) {
+      try {
+        const minimap = await map.image(Chk.fsFileAccess(dataDir), minimapWidth, minimapHeight)
         const image = new PNG({
           width: minimapWidth,
           height: minimapHeight,
@@ -86,8 +59,8 @@ async function printMapInfo(buf) {
         })
         image.data = minimap
         image.pack().pipe(fs.createWriteStream('minimap.png'))
-      } else {
-        console.log('Could not create minimap image')
+      } catch (err) {
+        console.log('Could not create minimap image: ' + err)
       }
     } catch (err) {
       console.log('Could not create minimap image', err.stack)
