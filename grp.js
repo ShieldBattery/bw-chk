@@ -6,8 +6,8 @@
 // Grp buffers are currently not validated, passing invalid
 // sprite data may result in exceptions during render() calls.
 
-import fs from 'fs'
 import BufferList from 'bl'
+import fs from 'fs'
 
 export class Grp {
   constructor(buf) {
@@ -18,7 +18,7 @@ export class Grp {
   decode(frame, palette) {
     const frameCount = this._buf.readUInt16LE(0)
     if (frame >= frameCount) {
-      return
+      return null
     }
 
     const header = this._buf.slice(6 + frame * 8, 6 + (frame + 1) * 8)
@@ -74,7 +74,7 @@ export class Grp {
         }
       }
     }
-    return {data: out, x, y, w: frameWidth, h: frameHeight}
+    return { data: out, x, y, w: frameWidth, h: frameHeight }
   }
 
   render(frame, palette, surface, surfX, surfY, surfW, surfH, scaleX, scaleY) {
@@ -171,7 +171,7 @@ export default class GrpGroup {
       return value
     } else {
       const io = new Promise((res, rej) => fs.createReadStream(key)
-        .pipe(BufferList(function(err, buf) {
+        .pipe(new BufferList((err, buf) => {
           if (err) {
             rej(err)
           } else {

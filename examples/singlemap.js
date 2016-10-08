@@ -1,37 +1,44 @@
 // singlemap.js <map.scx> [<data directory>]
 // Reads various information from a .scx file.
-import fs from 'fs'
+
+/* eslint no-console: "off" */
+
+import Chk, {SpriteGroup, Tilesets} from '../'
+
 import BufferList from 'bl'
+import fs from 'fs'
 import {PNG} from 'pngjs'
-import ScmExtractor from 'scm-extractor'
-import Chk, {Tilesets, SpriteGroup} from '../'
 import readline from 'readline'
+import scmExtractor from 'scm-extractor'
 import streamToPromise from 'stream-to-promise'
 
 const out = fs.createReadStream(process.argv[2])
-  .pipe(ScmExtractor())
+  .pipe(scmExtractor())
   .pipe(fs.createWriteStream('extracted.chk'))
 
 const dataDir = process.argv[3]
 
 out.on('finish', () => {
   const stream = fs.createReadStream('extracted.chk')
-    .pipe(BufferList(function(err, buf) {
+    .pipe(new BufferList((err, buf) => {
       if (err) {
         console.log(err)
         return
       }
-      printMapInfo(buf).then(() => {}, err => { console.log(err); console.log(err.stack) });
+      printMapInfo(buf).then(() => {}, err => {
+        console.log(err)
+        console.log(err.stack)
+      });
   }))
-  stream.on('error', (err) => {
+  stream.on('error', err => {
     console.log(err)
   })
 })
 
 async function printMapInfo(buf) {
   const map = new Chk(buf)
-  let tilesets = new Tilesets
-  const sprites = new SpriteGroup
+  let tilesets = new Tilesets()
+  const sprites = new SpriteGroup()
 
   if (dataDir !== undefined) {
     tilesets.init(dataDir)
@@ -42,14 +49,14 @@ async function printMapInfo(buf) {
     const units = readline.createInterface({ input: unitList })
     let unitId = 0
     units.on('line', line => {
-      sprites.addUnit(unitId, dataDir + '/unit/' + line)
+      sprites.addUnit(unitId, `${dataDir}/unit/${line}`)
       unitId += 1
     })
     const spriteList = fs.createReadStream('sprites.txt')
     const bwSprites = readline.createInterface({ input: spriteList })
     let spriteId = 0
     bwSprites.on('line', line => {
-      sprites.addSprite(spriteId, dataDir + '/unit/' + line)
+      sprites.addSprite(spriteId, `${dataDir}/unit/${line}`)
       spriteId += 1
     })
     await Promise.all([streamToPromise(unitList), streamToPromise(spriteList)])
@@ -67,14 +74,14 @@ async function printMapInfo(buf) {
 
   // Create an image with 25% resolution
   if (dataDir !== undefined) {
-    const minimap_width = map.size[0] * 8
-    const minimap_height = map.size[1] * 8
+    const minimapWidth = map.size[0] * 8
+    const minimapHeight = map.size[1] * 8
     try {
-      const minimap = await map.image(tilesets, sprites, minimap_width, minimap_height)
+      const minimap = await map.image(tilesets, sprites, minimapWidth, minimapHeight)
       if (minimap !== undefined) {
         const image = new PNG({
-          width: minimap_width,
-          height: minimap_height,
+          width: minimapWidth,
+          height: minimapHeight,
           inputHasAlpha: false,
         })
         image.data = minimap

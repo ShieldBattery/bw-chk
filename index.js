@@ -1,8 +1,8 @@
-"use strict";
+'use strict';
 
-import iconv from 'iconv-lite'
-import fs from 'fs'
 import BufferList from 'bl'
+import fs from 'fs'
+import iconv from 'iconv-lite'
 import SpriteGroup from './grp'
 
 export { SpriteGroup }
@@ -55,8 +55,10 @@ const PLAYER_COLORS = [
   [0x33, 0x33, 0x31, 0x31, 0x2d, 0x2d, 0xa0, 0x29],
 ]
 
-const TILESET_NAMES = ['badlands', 'platform', 'install', 'ashworld', 'jungle', 'desert', 'ice', 'twilight']
-const TILESET_NICE_NAMES = ['Badlands', 'Space', 'Installation', 'Ashworld', 'Jungle', 'Desert', 'Ice', 'Wwilight']
+const TILESET_NAMES = ['badlands', 'platform', 'install', 'ashworld', 'jungle', 'desert', 'ice',
+      'twilight']
+const TILESET_NICE_NAMES = ['Badlands', 'Space', 'Installation', 'Ashworld', 'Jungle', 'Desert',
+      'Ice', 'Twilight']
 
 class ChkError extends Error {
   constructor(desc) {
@@ -70,7 +72,7 @@ function getSections(buf) {
   sections.section = function(key) {
     const result = this.get(key)
     if (result === undefined) {
-      throw new ChkError('Section "' + key + '" does not exist')
+      throw new ChkError(`Section ${key} does not exist`)
     }
     return result
   }
@@ -88,7 +90,7 @@ function getSections(buf) {
       const acceptedLength = Math.min(length, maxSize)
       if (acceptedLength >= minSize) {
         const previous = sections.get(sectionId)
-        let buffer
+        let buffer = null
         if (acceptedLength < 0) {
           buffer = buf.slice(pos + 8)
         } else {
@@ -175,9 +177,9 @@ export default class Chk {
 
   maxPlayers(ums) {
     if (ums) {
-      return this.forces.reduce((accum, force) => {
-        return accum + force.players.filter(player => !player.computer).length
-      }, 0)
+      return this.forces.reduce((accum, force) => (
+        accum + force.players.filter(player => !player.computer).length
+      ), 0)
     } else {
       return this._maxMeleePlayers
     }
@@ -205,7 +207,7 @@ export default class Chk {
     const scale = pixelsPerMega / 32
     const megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
 
-    const out = Buffer(width * height * 3)
+    const out = Buffer.alloc(width * height * 3)
     let outPos = 0
     let yPos = 0
     const mapWidthPixels = this.size[0] * 32
@@ -232,7 +234,7 @@ export default class Chk {
         const megaX = Math.floor(xPos / 32)
         const megaWidth = Math.ceil(((Math.floor(xPos / 32) + 1) * 32 - xPos) / widthAdd)
 
-        let tileId
+        let tileId = 0
         if (mapTilePos + megaX * 2 + 2 > this._tiles.length) {
           tileId = 0
         } else {
@@ -242,7 +244,7 @@ export default class Chk {
         const tileGroup = tileId >> 4
         const groupIndex = tileId & 0xf
         const groupOffset = 2 + tileGroup * 0x34 + 0x12 + groupIndex * 2
-        let megatileId
+        let megatileId = 0
         if (groupOffset + 2 > tileset.tilegroup.length) {
           megatileId = 0
         } else {
@@ -254,7 +256,7 @@ export default class Chk {
         let writePos = outPos + x * 3
         let currentTileY = yPos % 32
         const currentTileLeft = xPos % 32
-        for (let tileY = 0; tileY < megaHeight; tileY++) {
+        for (let tileY = 0; tileY < megaHeight; tileY += 1) {
           const scaledY = Math.floor(currentTileY * scale)
           const megaLineBase = megaBase + scaledY * bytesPerMegaRow
 
@@ -340,14 +342,14 @@ export default class Chk {
   // Respective chk sections are FORC, OWNR, SIDE.
   _parsePlayers(forceData, playerData, raceData) {
     const forces = [{}, {}, {}, {}]
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 4; i += 1) {
       forces[i].name = this._strings.get(forceData.readUInt16LE(8 + i * 2))
       // 0x1 = Random start loca, 0x2 = Allied, 0x4 = Allied victory, 0x8 = Shared vision.
       forces[i].flags = this._strings.get(forceData.readUInt8(16 + i))
       forces[i].players = []
     }
     let maxPlayers = 0
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 8; i += 1) {
       const player = this._parsePlayer(i, playerData, raceData)
       if (player !== null) {
         maxPlayers += 1
@@ -365,8 +367,12 @@ export default class Chk {
 
   // Returns null if the player is inactive.
   _parsePlayer(id, playerData, raceData) {
-    if (playerData.length < id) throw new ChkError(`OWNR is too short (${playerData.length})`)
-    if (raceData.length < id) throw new ChkError(`SIDE is too short (${raceData.length})`)
+    if (playerData.length < id) {
+      throw new ChkError(`OWNR is too short (${playerData.length})`)
+    }
+    if (raceData.length < id) {
+      throw new ChkError(`SIDE is too short (${raceData.length})`)
+    }
 
     const race = raceData.readUInt8(id)
     const player = {
@@ -397,7 +403,9 @@ export default class Chk {
       const y = unitData.readUInt16LE(pos + 6)
       const unitId = unitData.readUInt16LE(pos + 8)
       const player = unitData.readUInt8(pos + 16)
-      if ((unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) || unitId === UNIT_ID_GEYSER) {
+      const isResource = (unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) ||
+        unitId === UNIT_ID_GEYSER
+      if (isResource) {
         const resourceAmt = unitData.readUInt32LE(pos + 20)
         units.push({x, y, unitId, player, resourceAmt})
       } else {
@@ -436,8 +444,8 @@ export class Tilesets {
 
   init(dataDir) {
     const promises = Array.from(TILESET_NAMES.entries()).map(entry => {
-      const path = dataDir + '/tileset/' + entry[1]
-      return this.addFiles(entry[0], path + '.cv5', path + '.vx4', path + '.vr4', path + '.wpe')
+      const path = `${dataDir}/tileset/${entry[1]}`
+      return this.addFiles(entry[0], `${path}.cv5`, `${path}.vx4`, `${path}.vr4`, `${path}.wpe`)
     })
     return Promise.all(promises)
   }
@@ -446,7 +454,7 @@ export class Tilesets {
     const promises = [tilegroup, megatiles, minitiles, palette]
       .map(filename => new Promise((res, rej) => {
       fs.createReadStream(filename)
-        .pipe(BufferList(function(err, buf) {
+        .pipe(new BufferList((err, buf) => {
           if (err) {
             rej(err)
           } else {
@@ -462,11 +470,11 @@ export class Tilesets {
 
   addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
     this._tilesets[tilesetId] = {
-      tilegroup: tilegroup,
-      megatiles: megatiles,
-      minitiles: minitiles,
-      palette: palette,
-      scaledMegatileCache: []
+      tilegroup,
+      megatiles,
+      minitiles,
+      palette,
+      scaledMegatileCache: [],
     }
   }
 }
@@ -480,7 +488,7 @@ function colorAtMega(tileset, mega, x, y) {
   const flipped = mini & 1
   const minitile = mini & 0xfffe
 
-  let color
+  let color = 0
   if (flipped) {
     color = tileset.minitiles.readUInt8(minitile * 0x20 + colorY * 8 + (7 - colorX))
   } else {
@@ -500,16 +508,16 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
   }
   const megatileCount = tileset.megatiles.length / 0x20
   const out = new Buffer(pixelsPerMega * pixelsPerMega * megatileCount * 3)
-  var outPos = 0
+  let outPos = 0
   const pixelsPerScaled = 32 / pixelsPerMega
   const centeringOffset = pixelsPerScaled / 4
-  for (var i = 0; i < megatileCount; i++) {
-    var top = centeringOffset
-    var bottom = pixelsPerScaled - centeringOffset
-    for (var y = 0; y < pixelsPerMega; y++) {
-      var left = centeringOffset
-      var right = pixelsPerScaled - centeringOffset
-      for (var x = 0; x < pixelsPerMega; x++) {
+  for (let i = 0; i < megatileCount; i += 1) {
+    let top = centeringOffset
+    let bottom = pixelsPerScaled - centeringOffset
+    for (let y = 0; y < pixelsPerMega; y += 1) {
+      let left = centeringOffset
+      let right = pixelsPerScaled - centeringOffset
+      for (let x = 0; x < pixelsPerMega; x += 1) {
         const tl = colorAtMega(tileset, i, left, top)
         const tr = colorAtMega(tileset, i, right, top)
         const bl = colorAtMega(tileset, i, left, bottom)

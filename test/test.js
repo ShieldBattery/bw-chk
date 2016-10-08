@@ -1,14 +1,14 @@
-"use strict";
+'use strict';
 
-import {test} from 'tape'
-import fs from 'fs'
-import BufferList from 'bl'
 import Chk, {Tilesets} from '../'
+import BufferList from 'bl'
+import fs from 'fs'
+import {test} from 'tape'
 
 async function getMap(filename) {
-  const buf = await new Promise((res, rej) => {
+  const buf = await new Promise(res => {
     fs.createReadStream('test/' + filename)
-      .pipe(BufferList(function(err, buf) {
+      .pipe(new BufferList((err, buf) => {
         if (err) {
           throw err
         }
@@ -18,7 +18,7 @@ async function getMap(filename) {
   return new Chk(buf)
 }
 
-test('Simple map', async function(t) {
+test('Simple map', async t => {
   const map = await getMap('simple.chk')
   t.plan(5)
   t.deepEqual(map.title, 'Untitled Scenario.')
@@ -28,17 +28,17 @@ test('Simple map', async function(t) {
   t.deepEqual(map.maxPlayers(false), 8)
 })
 
-test('Weird forces', async function(t) {
+test('Weird forces', async t => {
   const map = await getMap('forces.chk')
   t.plan(6)
-  for (var i = 0; i < 4; i++) {
+  for (let i = 0; i < 4; i += 1) {
     t.deepEqual(map.forces[i].players, [{id: i, race: 5, computer: false}])
   }
   t.deepEqual(map.maxPlayers(true), 4)
   t.deepEqual(map.maxPlayers(false), 8)
 })
 
-test('Incomplete forces', async function(t) {
+test('Incomplete forces', async t => {
   const map = await getMap('forces2.chk')
   t.plan(3)
   t.deepEqual(map.forces[0].players.length, 2)
@@ -46,16 +46,16 @@ test('Incomplete forces', async function(t) {
   t.deepEqual(map.maxPlayers(true), 0)
 })
 
-test('Section abuse', async function(t) {
+test('Section abuse', async t => {
   const map = await getMap('sections.chk')
   t.plan(2)
   t.deepEqual(map.title, '\x04S.A.T. \x06Control \x072 \x03[1.1]')
   t.deepEqual(map.size, [128, 128])
 })
 
-test('Invalid tile in MTXM', async function(t) {
+test('Invalid tile in MTXM', async t => {
   try {
-    const tilesets = new Tilesets
+    const tilesets = new Tilesets()
     tilesets.init('bwdata')
     const map = await getMap('minimap.chk')
     const minimap = map.image(tilesets, undefined, 128, 128)

@@ -45,7 +45,7 @@ zerg/mutalid.grp
 zerg/guardian.grp
 zerg/queen.grp
 zerg/defiler.grp
-zergvenger.grp
+zerg/avenger.grp
 zerg/ultra.grp
 zerg/queen.grp
 zerg/bugguy.grp
