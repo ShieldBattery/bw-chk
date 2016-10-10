@@ -225,7 +225,10 @@ class StrSection {
       const end = this._data.indexOf(0, offset)
       const korean = iconv.decode(this._data.slice(offset, end), 'cp949')
       let hangulChars = 0
+      let longestHangulStreak = 0
+      let currentHangulStreak = 0
       let otherNonAscii = 0
+      const hangulVariance = new Set()
       for (let idx = 0; idx < korean.length; idx++) {
         const code = korean.charCodeAt(idx)
         if (code === 0xfffd) {
@@ -235,16 +238,28 @@ class StrSection {
           otherStrings = otherStrings + 5
           break
         } else if (isHangul(code)) {
+          hangulVariance.add(code)
           hangulChars++
-        } else if (code > 0x80) {
-          otherNonAscii++
+          currentHangulStreak++
+          if (currentHangulStreak > longestHangulStreak) {
+            longestHangulStreak = currentHangulStreak
+          }
+        } else {
+          currentHangulStreak = 0
+          if (code > 0x80) {
+            otherNonAscii++
+          }
         }
       }
-      if (hangulChars >= 5) {
+      // Some 1252 characters, most notably § (Fa§§§te§§t map po§§§§ible), happen to also
+      // be valid hangul characters in 949, so we'll do this weird rule of
+      // "having single hangul characters in the string does not count"
+      const hadHangul = longestHangulStreak >= 2 && hangulVariance.size >= 2
+      if (hadHangul && hangulChars >= 5) {
         korStrings++
-      } else if (hangulChars >= 1 && hangulChars > otherNonAscii) {
+      } else if (hadHangul && hangulChars >= 1 && hangulChars > otherNonAscii) {
         korStrings++
-      } else if (otherNonAscii > 0) {
+      } else if (otherNonAscii > 0 || hangulChars > 0) {
         otherStrings++
       }
     }
