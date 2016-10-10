@@ -24,9 +24,21 @@ display its information. If you have bw's data files extracted to disk, it can a
 generate a image of the map.
 
 ## Class: Chk
-### Constructor(buffer)
+### Constructor(buffer, [options])
 Parses the chk synchronously. If the buffer is not a valid chk, an exception with `name`
 `ChkError` is thrown.
+
+`options` can be used to specify encoding:
+
+```javascript
+{
+  encoding: 'auto',
+}
+```
+
+Setting encoding to `auto` causes the library to use a simple heuristic for determining between
+Western (cp1252) and Korean (cp949) encodings. If `auto` is specified, the guessed encoding can
+be read from `chk.encoding`
 
 ### chk.size
 Map size in tiles `[width, height]`
@@ -79,6 +91,11 @@ before the map is properly initialized).
 Each sprite has the following properties:
 - `x`, `y` are the coordinates in pixels
 - `spriteId` is the sprite type (integer)
+
+### chk.encoding
+The encoding specified in constructor, or the heuristically determined one if 'auto' was
+specified. Note that most English maps may be reported to have Korean (cp949) encoding, as
+both encodings are ASCII-compatible.
 
 ### chk.maxPlayers(isUms)
 Returns the amount of *human* players that can play the map. As the player limit can be

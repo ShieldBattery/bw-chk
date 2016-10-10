@@ -165,13 +165,18 @@ function getSections(buf) {
 }
 
 class StrSection {
-  constructor(buf) {
+  constructor(buf, encoding) {
     this._data = buf
     if (buf.length < 2) {
       this._amount = 0
     } else {
       const maxPossibleAmt = Math.floor((buf.length - 2) / 2)
       this._amount = Math.min(buf.readUInt16LE(0), maxPossibleAmt)
+    }
+    if (encoding === 'auto') {
+      this.encoding = this._determineEncoding()
+    } else {
+      this.encoding = encoding
     }
   }
 
@@ -187,15 +192,75 @@ class StrSection {
       return ''
     }
     const end = this._data.indexOf(0, offset)
-    // TODO: Support 949 as well
-    return iconv.decode(this._data.slice(offset, end), 'win1252')
+    return iconv.decode(this._data.slice(offset, end), this.encoding)
+  }
+
+  _determineEncoding() {
+    const isHangul = c => c >= 0xac00 && c < 0xd7b0
+    // Strings that seem to be Korean
+    let korStrings = 0
+    // Strings that don't seem to be Korean, but still have non-ASCII chars
+    let otherStrings = 0
+    let minStringOffset = 0
+    if (this._amount > 1) {
+      // Most maps have first 0x800 or so bytes reserved for string offsets,
+      // and the strings begin from after that. If that seems to be the case,
+      // prevent any strings that begin from offsets less than 0x800.
+      const firstStringOffset = this._data.readUInt16LE(2)
+      if (firstStringOffset > 0x800 && firstStringOffset < 0x900) {
+        minStringOffset = 0x800
+      }
+    }
+    for (let i = 1; i <= this._amount; i++) {
+      const offset = this._data.readUInt16LE(i * 2)
+      if (offset >= this._data.length || offset < minStringOffset) {
+        // Yay, intentional string table corrupting. We might miss some real strings by
+        // breaking immediately, but trying to understand garbage will surely throw
+        // the predictions off.
+        // TODO: Could determine all valid string ids from the map and only analyze those.
+        // (Triggers, briefing, unit names, scenario info, force names)
+        break
+      }
+
+      const end = this._data.indexOf(0, offset)
+      const korean = iconv.decode(this._data.slice(offset, end), 'cp949')
+      let hangulChars = 0
+      let otherNonAscii = 0
+      for (let idx = 0; idx < korean.length; idx++) {
+        const code = korean.charCodeAt(idx)
+        if (code === 0xfffd) {
+          // Replacement character - was not valid 949 encoding
+          // Sometimes there may be maps that have been edited in both encodings,
+          // so just take this as a heavy hint towards 1252
+          otherStrings = otherStrings + 5
+          break
+        } else if (isHangul(code)) {
+          hangulChars++
+        } else if (code > 0x80) {
+          otherNonAscii++
+        }
+      }
+      if (hangulChars >= 5) {
+        korStrings++
+      } else if (hangulChars >= 1 && hangulChars > otherNonAscii) {
+        korStrings++
+      } else if (otherNonAscii > 0) {
+        otherStrings++
+      }
+    }
+    return korStrings >= otherStrings ? 'cp949' : 'cp1252'
   }
 }
 
 export default class Chk {
-  constructor(buf) {
+  constructor(buf, options) {
+    const opts = Object.assign({
+      encoding: 'auto',
+    }, options)
+
     const sections = getSections(buf)
-    this._strings = new StrSection(sections.section('STR\x20'));
+    this._strings = new StrSection(sections.section('STR\x20'), opts.encoding)
+    this.encoding = this._strings.encoding;
     [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))

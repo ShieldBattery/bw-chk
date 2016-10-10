@@ -90,3 +90,26 @@ test('Out-of-bounds sprite', async t => {
     throw e
   }
 })
+
+test('Encoding heuristic (949)', async t => {
+  // Note: 4.chk is a Korean map which has been edited later to have Western text.
+  // As such, the heuristic is more fragile than usual.
+  // If the heuristic is taught to ignore location names, it should always be recognized as 949.
+  const files = fs.readdirSync('test/kor_encoding')
+  t.plan(files.length)
+  for (const file of files) {
+    const map = await getMap('kor_encoding/' + file)
+    t.comment(file)
+    t.deepEqual(map.encoding, 'cp949')
+  }
+})
+
+test('Encoding heuristic (1252)', async t => {
+  const files = fs.readdirSync('test/wes_encoding')
+  t.plan(files.length)
+  for (const file of files) {
+    const map = await getMap('wes_encoding/' + file)
+    t.comment(file)
+    t.deepEqual(map.encoding, 'cp1252')
+  }
+})
