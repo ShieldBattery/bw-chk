@@ -225,10 +225,8 @@ class StrSection {
       const end = this._data.indexOf(0, offset)
       const korean = iconv.decode(this._data.slice(offset, end), 'cp949')
       let hangulChars = 0
-      let longestHangulStreak = 0
-      let currentHangulStreak = 0
       let otherNonAscii = 0
-      const hangulVariance = new Set()
+      const nonAscii1252 = new Set()
       for (let idx = 0; idx < korean.length; idx++) {
         const code = korean.charCodeAt(idx)
         if (code === 0xfffd) {
@@ -237,24 +235,24 @@ class StrSection {
           // so just take this as a heavy hint towards 1252
           otherStrings = otherStrings + 5
           break
-        } else if (isHangul(code)) {
-          hangulVariance.add(code)
-          hangulChars++
-          currentHangulStreak++
-          if (currentHangulStreak > longestHangulStreak) {
-            longestHangulStreak = currentHangulStreak
-          }
         } else {
-          currentHangulStreak = 0
-          if (code > 0x80) {
+          if ((code & 0xff) >= 0x80) {
+            nonAscii1252.add(code & 0xff)
+          }
+          if (((code >> 8) & 0xff) >= 0x80) {
+            nonAscii1252.add((code >> 8) & 0xff)
+          }
+
+          if (isHangul(code)) {
+            hangulChars++
+          } else if (code > 0x80) {
             otherNonAscii++
           }
         }
       }
-      // Some 1252 characters, most notably § (Fa§§§te§§t map po§§§§ible), happen to also
-      // be valid hangul characters in 949, so we'll do this weird rule of
-      // "having single hangul characters in the string does not count"
-      const hadHangul = longestHangulStreak >= 2 && hangulVariance.size >= 2
+      // Since some 1252 characters can appear as hangul, if there is only a single
+      // non-ascii character used, assume it is 1252.
+      const hadHangul = hangulChars >= 1 && nonAscii1252.size >= 2
       if (hadHangul && hangulChars >= 5) {
         korStrings++
       } else if (hadHangul && hangulChars >= 1 && hangulChars > otherNonAscii) {
