@@ -25,7 +25,7 @@ export class Grp {
     let frameWidth = header.readUInt8(2)
     // Not actually sure about this, but my notes say so?
     if (header.readUInt32LE(4) & 0x80000000) {
-      frameWidth += 0x100
+      frameWidth = frameWidth + 0x100
     }
     const frameHeight = header.readUInt8(3)
 
@@ -42,8 +42,8 @@ export class Grp {
           // Transparent
           const amount = val & ~0x80
           out.fill(0x00, outPos, outPos + amount * 4)
-          outPos += amount * 4
-          pos += 1
+          outPos = outPos + amount * 4
+          pos = pos + 1
         } else if (val & 0x40) {
           // Repeat single color
           const amount = val & ~0x40
@@ -53,9 +53,9 @@ export class Grp {
             out[outPos + 1] = palette[color * 4 + 1]
             out[outPos + 2] = palette[color * 4 + 2]
             out[outPos + 3] = 0xff
-            outPos += 4
+            outPos = outPos + 4
           }
-          pos += 2
+          pos = pos + 2
         } else {
           // Just copy colors
           const amount = val
@@ -65,9 +65,9 @@ export class Grp {
             out[outPos + 1] = palette[color * 4 + 1]
             out[outPos + 2] = palette[color * 4 + 2]
             out[outPos + 3] = 0xff
-            outPos += 4
+            outPos = outPos + 4
           }
-          pos += 1 + amount
+          pos = pos + 1 + amount
         }
       }
     }
@@ -75,6 +75,8 @@ export class Grp {
   }
 
   render(frame, palette, surface, surfX, surfY, surfW, surfH, scaleX, scaleY) {
+    const floor = Math.floor
+
     if (!this._buf) {
       return
     }
@@ -82,16 +84,16 @@ export class Grp {
     if (!img) {
       return
     }
-    let w = Math.floor(img.w * scaleX)
-    let h = Math.floor(img.h * scaleY)
-    let x = Math.floor(surfX + (img.x - (this._buf.readUInt16LE(2) / 2)) * scaleX)
-    let y = Math.floor(surfY + (img.y - (this._buf.readUInt16LE(4) / 2)) * scaleY)
+    let w = floor(img.w * scaleX)
+    let h = floor(img.h * scaleY)
+    let x = floor(surfX + (img.x - (this._buf.readUInt16LE(2) / 2)) * scaleX)
+    let y = floor(surfY + (img.y - (this._buf.readUInt16LE(4) / 2)) * scaleY)
     if (x < 0) {
-      w += x
+      w = w + x
       x = 0
     }
     if (y < 0) {
-      h += y
+      h = h + y
       y = 0
     }
     if (x + w > surfW) {
@@ -102,10 +104,10 @@ export class Grp {
     }
 
     const value = (x, y, offset) => {
-      const x1 = Math.floor((x / w) * img.w)
-      const x2 = Math.floor(((x + 0.5) / w) * img.w)
-      const y1 = Math.floor((y / h) * img.h)
-      const y2 = Math.floor(((y + 0.5) / h) * img.h)
+      const x1 = floor((x / w) * img.w)
+      const x2 = floor(((x + 0.5) / w) * img.w)
+      const y1 = floor((y / h) * img.h)
+      const y2 = floor(((y + 0.5) / h) * img.h)
       const a = img.data[(y1 * img.w + x1) * 4 + offset]
       const b = img.data[(y2 * img.w + x1) * 4 + offset]
       const c = img.data[(y1 * img.w + x2) * 4 + offset]
@@ -123,9 +125,9 @@ export class Grp {
         surface[pos + 0] = (red * alpha) + (surface[pos + 0] * (1.0 - alpha))
         surface[pos + 1] = (green * alpha) + (surface[pos + 1] * (1.0 - alpha))
         surface[pos + 2] = (blue * alpha) + (surface[pos + 2] * (1.0 - alpha))
-        pos += 3
+        pos = pos + 3
       }
-      pos += (surfW - w) * 3
+      pos = pos + (surfW - w) * 3
     }
   }
 }

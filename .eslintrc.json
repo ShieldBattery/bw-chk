@@ -203,10 +203,7 @@
         "object-shorthand": "error",
         "one-var": "off",
         "one-var-declaration-per-line": "error",
-        "operator-assignment": [
-            "error",
-            "always"
-        ],
+        "operator-assignment": "off",
         "operator-linebreak": "error",
         "padded-blocks": "off",
         "prefer-arrow-callback": "error",

@@ -294,10 +294,13 @@ export default class Chk {
   // A drawback to this method is that the tile boundaries are easy to recognize
   // from the final image when there are large areas of flat terrain.
   _renderTerrain(tileset, out, width, height) {
+    const ceil = Math.ceil
+    const floor = Math.floor
+
     const pixelsPerMegaX = width / this.size[0]
     const pixelsPerMegaY = height / this.size[1]
     const higher = Math.max(pixelsPerMegaX, pixelsPerMegaY)
-    const pixelsPerMega = Math.pow(2, Math.ceil(Math.log2(higher)))
+    const pixelsPerMega = Math.pow(2, ceil(Math.log2(higher)))
 
     const scale = pixelsPerMega / 32
     const megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
@@ -315,18 +318,18 @@ export default class Chk {
     const bytesPerMegaRow = pixelsPerMega * 3
     let y = 0
     while (y < height) {
-      const megaY = Math.floor(yPos / 32)
+      const megaY = floor(yPos / 32)
 
       // How many pixels tall is the current row of tiles.
       // Not necessarily same for all rows, if using a strange scale.
-      const megaHeight = Math.ceil(((Math.floor(yPos / 32) + 1) * 32 - yPos) / heightAdd)
+      const megaHeight = ceil(((floor(yPos / 32) + 1) * 32 - yPos) / heightAdd)
 
       const mapTilePos = megaY * this.size[0] * 2
       let xPos = 0
       let x = 0
       while (x < width) {
-        const megaX = Math.floor(xPos / 32)
-        const megaWidth = Math.ceil(((Math.floor(xPos / 32) + 1) * 32 - xPos) / widthAdd)
+        const megaX = floor(xPos / 32)
+        const megaWidth = ceil(((floor(xPos / 32) + 1) * 32 - xPos) / widthAdd)
 
         let tileId = 0
         if (mapTilePos + megaX * 2 + 2 > this._tiles.length) {
@@ -350,28 +353,28 @@ export default class Chk {
         let writePos = outPos + x * 3
         let currentTileY = yPos % 32
         const currentTileLeft = xPos % 32
-        for (let tileY = 0; tileY < megaHeight; tileY += 1) {
-          const scaledY = Math.floor(currentTileY * scale)
+        for (let tileY = 0; tileY < megaHeight; tileY++) {
+          const scaledY = floor(currentTileY * scale)
           const megaLineBase = megaBase + scaledY * bytesPerMegaRow
 
           let currentTileX = currentTileLeft
-          for (let tileX = 0; tileX < megaWidth; tileX += 1) {
-            const megaOffset = megaLineBase + Math.floor(currentTileX * scale) * 3
+          for (let tileX = 0; tileX < megaWidth; tileX++) {
+            const megaOffset = megaLineBase + floor(currentTileX * scale) * 3
             out[writePos] = megatiles[megaOffset]
             out[writePos + 1] = megatiles[megaOffset + 1]
             out[writePos + 2] = megatiles[megaOffset + 2]
-            writePos += 3
-            currentTileX += widthAdd
+            writePos = writePos + 3
+            currentTileX = currentTileX + widthAdd
           }
-          currentTileY += heightAdd
-          writePos += (width - megaWidth) * 3
+          currentTileY = currentTileY + heightAdd
+          writePos = writePos + (width - megaWidth) * 3
         }
-        x += megaWidth
-        xPos += megaWidth * widthAdd
+        x = x + megaWidth
+        xPos = xPos + megaWidth * widthAdd
       }
-      yPos += megaHeight * heightAdd
-      y += megaHeight
-      outPos += width * megaHeight * 3
+      yPos = yPos + megaHeight * heightAdd
+      y = y + megaHeight
+      outPos = outPos + width * megaHeight * 3
     }
   }
 
@@ -525,7 +528,7 @@ export default class Chk {
           units.push({x, y, unitId, player})
         }
       }
-      pos += 36
+      pos = pos + 36
     }
 
     pos = 0
@@ -542,7 +545,7 @@ export default class Chk {
           sprites.push({x, y, spriteId})
         }
       }
-      pos += 10
+      pos = pos + 10
     }
     return [units, sprites]
   }
@@ -624,13 +627,13 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
   let outPos = 0
   const pixelsPerScaled = 32 / pixelsPerMega
   const centeringOffset = pixelsPerScaled / 4
-  for (let i = 0; i < megatileCount; i += 1) {
+  for (let i = 0; i < megatileCount; i++) {
     let top = centeringOffset
     let bottom = pixelsPerScaled - centeringOffset
-    for (let y = 0; y < pixelsPerMega; y += 1) {
+    for (let y = 0; y < pixelsPerMega; y++) {
       let left = centeringOffset
       let right = pixelsPerScaled - centeringOffset
-      for (let x = 0; x < pixelsPerMega; x += 1) {
+      for (let x = 0; x < pixelsPerMega; x++) {
         const tl = colorAtMega(tileset, i, left, top)
         const tr = colorAtMega(tileset, i, right, top)
         const bl = colorAtMega(tileset, i, left, bottom)
@@ -638,12 +641,12 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
         out[outPos + 0] = (tl[0] + tr[0] + bl[0] + br[0]) / 4
         out[outPos + 1] = (tl[1] + tr[1] + bl[1] + br[1]) / 4
         out[outPos + 2] = (tl[2] + tr[2] + bl[2] + br[2]) / 4
-        outPos += 3
-        left += pixelsPerScaled
-        right += pixelsPerScaled
+        outPos = outPos + 3
+        left = left + pixelsPerScaled
+        right = right + pixelsPerScaled
       }
-      top += pixelsPerScaled
-      bottom += pixelsPerScaled
+      top = top + pixelsPerScaled
+      bottom = bottom + pixelsPerScaled
     }
   }
 
