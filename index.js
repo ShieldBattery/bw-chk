@@ -272,7 +272,7 @@ class StrSection {
   }
 
   _determineEncoding(usedStrings) {
-    const isHangul = c => c >= 0xac00 && c < 0xd7b0
+    const isHangul = c => (c >= 0xac00 && c < 0xd7b0) || (c >= 0x3130 && c < 0x3190)
     // Strings that seem to be Korean
     let korStrings = 0
     // Strings that don't seem to be Korean, but still have non-ASCII chars
@@ -288,10 +288,16 @@ class StrSection {
       }
 
       const end = this._data.indexOf(0, offset)
-      const korean = iconv.decode(this._data.slice(offset, end), 'cp949')
+      const raw = this._data.slice(offset, end)
+      const korean = iconv.decode(raw, 'cp949')
       let hangulChars = 0
       let otherNonAscii = 0
       const nonAscii1252 = new Set()
+      for (const char of raw) {
+        if (char >= 0x80) {
+          nonAscii1252.add(char)
+        }
+      }
       for (let idx = 0; idx < korean.length; idx++) {
         const code = korean.charCodeAt(idx)
         if (code === 0xfffd) {
@@ -300,19 +306,10 @@ class StrSection {
           // so just take this as a heavy hint towards 1252
           otherStrings = otherStrings + 5
           break
-        } else {
-          if ((code & 0xff) >= 0x80) {
-            nonAscii1252.add(code & 0xff)
-          }
-          if (((code >> 8) & 0xff) >= 0x80) {
-            nonAscii1252.add((code >> 8) & 0xff)
-          }
-
-          if (isHangul(code)) {
-            hangulChars++
-          } else if (code > 0x80) {
-            otherNonAscii++
-          }
+        } else if (isHangul(code)) {
+          hangulChars++
+        } else if (code > 0x80) {
+          otherNonAscii++
         }
       }
       // Since some 1252 characters can appear as hangul, if there is only a single
