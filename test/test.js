@@ -100,7 +100,7 @@ test('Encoding heuristic (949)', async t => {
   for (const file of files) {
     const map = await getMap('kor_encoding/' + file)
     t.comment(file)
-    t.deepEqual(map.encoding, 'cp949')
+    t.deepEqual(map.encoding(), 'cp949')
   }
 })
 
@@ -110,6 +110,6 @@ test('Encoding heuristic (1252)', async t => {
   for (const file of files) {
     const map = await getMap('wes_encoding/' + file)
     t.comment(file)
-    t.deepEqual(map.encoding, 'cp1252')
+    t.deepEqual(map.encoding(), 'cp1252')
   }
 })

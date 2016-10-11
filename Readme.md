@@ -92,10 +92,11 @@ Each sprite has the following properties:
 - `x`, `y` are the coordinates in pixels
 - `spriteId` is the sprite type (integer)
 
-### chk.encoding
+### chk.encoding()
 The encoding specified in constructor, or the heuristically determined one if 'auto' was
 specified. Note that most English maps may be reported to have Korean (cp949) encoding, as
-both encodings are ASCII-compatible.
+both encodings are ASCII-compatible. May be extended in future to also return 'mixed', if
+the map mixes both 1252 and 949.
 
 ### chk.maxPlayers(isUms)
 Returns the amount of *human* players that can play the map. As the player limit can be

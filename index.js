@@ -345,7 +345,7 @@ export default class Chk {
 
     const usedStrings = () => this._usedStringIds(forceSection, sections)
     this._strings = new StrSection(sections.section('STR\x20'), opts.encoding, usedStrings)
-    this.encoding = this._strings.encoding;
+    this._encoding = this._strings.encoding;
     [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))
@@ -358,6 +358,10 @@ export default class Chk {
 
     [this.units, this.sprites] =
       this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
+  }
+
+  encoding() {
+    return this._encoding
   }
 
   maxPlayers(ums) {
