@@ -32,6 +32,10 @@ const SECTION_TYPES = {
   'DIM\x20': { type: SECTION_FULL_OVERWRITE, minSize: 4, maxSize: 4 },
   'UNIT': { type: SECTION_APPEND },
   'THG2': { type: SECTION_APPEND },
+  'TRIG': { type: SECTION_APPEND },
+  'MBRF': { type: SECTION_APPEND },
+  'UNIS': { type: SECTION_FULL_OVERWRITE, minSize: 4048 },
+  'UNIx': { type: SECTION_FULL_OVERWRITE, minSize: 4168 },
 }
 
 const SPRITE_ID_MAX = 516
@@ -47,6 +51,7 @@ const UNIT_ID_MINERAL3 = 178
 const UNIT_ID_GEYSER = 188
 const UNIT_ID_START_LOCATION = 214
 const UNIT_ID_MAX = 227
+const UNIT_TYPE_COUNT = UNIT_ID_MAX + 1
 
 const isResource = unitId => (unitId >= UNIT_ID_MINERAL1 && unitId <= UNIT_ID_MINERAL3) ||
   unitId === UNIT_ID_GEYSER
@@ -81,6 +86,23 @@ const TILESET_NAMES = ['badlands', 'platform', 'install', 'ashworld', 'jungle', 
       'twilight']
 const TILESET_NICE_NAMES = ['Badlands', 'Space', 'Installation', 'Ashworld', 'Jungle', 'Desert',
       'Ice', 'Twilight']
+
+const TRIGGER_ACTION_TRANSMISSION = 7
+const TRIGGER_ACTION_MESSAGE = 9
+const TRIGGER_ACTION_OBJECTIVES = 12
+const TRIGGER_ACTION_LEADERBOARD_CONTROL = 17
+const TRIGGER_ACTION_LEADERBOARD_CONTROL_LOCATION = 18
+const TRIGGER_ACTION_LEADERBOARD_MONEY = 19
+const TRIGGER_ACTION_LEADERBOARD_KILLS = 20
+const TRIGGER_ACTION_LEADERBOARD_SCORE = 21
+const TRIGGER_ACTION_LEADERBOARD_GOAL_CONTROL = 33
+const TRIGGER_ACTION_LEADERBOARD_GOAL_CONTROL_LOCATION = 34
+const TRIGGER_ACTION_LEADERBOARD_GOAL_MONEY = 35
+const TRIGGER_ACTION_LEADERBOARD_GOAL_KILLS = 36
+const TRIGGER_ACTION_LEADERBOARD_GOAL_SCORE = 37
+const BRIEFING_ACTION_MESSAGE = 3
+const BRIEFING_ACTION_OBJECTIVES = 4
+const BRIEFING_ACTION_TRANSMISSION = 8
 
 // Handles accessing, decoding, and caching bw's files.
 class FileAccess {
@@ -164,8 +186,62 @@ function getSections(buf) {
   return sections
 }
 
+function triggerDisplayStrings(trigger) {
+  let result = []
+  for (let i = 0; i < 64; i++) {
+    const action = trigger.readUInt8(0x140 + i * 0x20 + 0x1a)
+    if (action === 0) {
+      break
+    }
+    switch (action) {
+      case TRIGGER_ACTION_TRANSMISSION:
+      case TRIGGER_ACTION_MESSAGE:
+      case TRIGGER_ACTION_OBJECTIVES:
+      case TRIGGER_ACTION_LEADERBOARD_CONTROL:
+      case TRIGGER_ACTION_LEADERBOARD_CONTROL_LOCATION:
+      case TRIGGER_ACTION_LEADERBOARD_MONEY:
+      case TRIGGER_ACTION_LEADERBOARD_KILLS:
+      case TRIGGER_ACTION_LEADERBOARD_SCORE:
+      case TRIGGER_ACTION_LEADERBOARD_GOAL_CONTROL:
+      case TRIGGER_ACTION_LEADERBOARD_GOAL_CONTROL_LOCATION:
+      case TRIGGER_ACTION_LEADERBOARD_GOAL_MONEY:
+      case TRIGGER_ACTION_LEADERBOARD_GOAL_KILLS:
+      case TRIGGER_ACTION_LEADERBOARD_GOAL_SCORE: {
+        const string = trigger.readUInt16LE(0x140 + i * 0x20 + 4)
+        if (string !== 0) {
+          result.push(string)
+        }
+      } break
+    }
+  }
+  return result
+}
+
+function briefingDisplayStrings(trigger) {
+  let result = []
+  for (let i = 0; i < 64; i++) {
+    const action = trigger.readUInt8(0x140 + i * 0x20 + 0x1a)
+    if (action === 0) {
+      break
+    }
+    switch (action) {
+      case BRIEFING_ACTION_TRANSMISSION:
+      case BRIEFING_ACTION_MESSAGE:
+      case BRIEFING_ACTION_OBJECTIVES: {
+        const string = trigger.readUInt16LE(0x140 + i * 0x20 + 4)
+        if (string !== 0) {
+          result.push(string)
+        }
+      } break
+    }
+  }
+  return result
+}
+
 class StrSection {
-  constructor(buf, encoding) {
+  // `usedStrings` is required with 'auto' encoding, as there may be invalid strings
+  // in middle of valid ones. It is a lazily called callback returning array of string ids.
+  constructor(buf, encoding, usedStrings) {
     this._data = buf
     if (buf.length < 2) {
       this._amount = 0
@@ -174,7 +250,7 @@ class StrSection {
       this._amount = Math.min(buf.readUInt16LE(0), maxPossibleAmt)
     }
     if (encoding === 'auto') {
-      this.encoding = this._determineEncoding()
+      this.encoding = this._determineEncoding(usedStrings())
     } else {
       this.encoding = encoding
     }
@@ -195,31 +271,20 @@ class StrSection {
     return iconv.decode(this._data.slice(offset, end), this.encoding)
   }
 
-  _determineEncoding() {
+  _determineEncoding(usedStrings) {
     const isHangul = c => c >= 0xac00 && c < 0xd7b0
     // Strings that seem to be Korean
     let korStrings = 0
     // Strings that don't seem to be Korean, but still have non-ASCII chars
     let otherStrings = 0
-    let minStringOffset = 0
-    if (this._amount > 1) {
-      // Most maps have first 0x800 or so bytes reserved for string offsets,
-      // and the strings begin from after that. If that seems to be the case,
-      // prevent any strings that begin from offsets less than 0x800.
-      const firstStringOffset = this._data.readUInt16LE(2)
-      if (firstStringOffset > 0x800 && firstStringOffset < 0x900) {
-        minStringOffset = 0x800
+    for (const string of usedStrings) {
+      if (string >= this._amount) {
+        // Should not happen if usedStrings is correct and the map is not horribly corrupt?
+        continue
       }
-    }
-    for (let i = 1; i <= this._amount; i++) {
-      const offset = this._data.readUInt16LE(i * 2)
-      if (offset >= this._data.length || offset < minStringOffset) {
-        // Yay, intentional string table corrupting. We might miss some real strings by
-        // breaking immediately, but trying to understand garbage will surely throw
-        // the predictions off.
-        // TODO: Could determine all valid string ids from the map and only analyze those.
-        // (Triggers, briefing, unit names, scenario info, force names)
-        break
+      const offset = this._data.readUInt16LE(string * 2)
+      if (offset >= this._data.length) {
+        continue
       }
 
       const end = this._data.indexOf(0, offset)
@@ -272,14 +337,6 @@ export default class Chk {
     }, options)
 
     const sections = getSections(buf)
-    this._strings = new StrSection(sections.section('STR\x20'), opts.encoding)
-    this.encoding = this._strings.encoding;
-    [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
-      .map(index => this._strings.get(index))
-    this.tileset = this._parseTileset(sections.section('ERA\x20'))
-    this.tilesetName = TILESET_NICE_NAMES[this.tileset]
-
-    this.size = this._parseDimensions(sections.section('DIM\x20'))
     // FORC gets zero-padded if it is smaller than 14 bytes.
     // Do any other sections?
     let forceSection = sections.section('FORC')
@@ -288,6 +345,16 @@ export default class Chk {
       forceSection = Buffer.concat([forceSection, new Buffer(20 - oldLength)])
       forceSection.fill(0, oldLength)
     }
+
+    const usedStrings = () => this._usedStringIds(forceSection, sections)
+    this._strings = new StrSection(sections.section('STR\x20'), opts.encoding, usedStrings)
+    this.encoding = this._strings.encoding;
+    [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
+      .map(index => this._strings.get(index))
+    this.tileset = this._parseTileset(sections.section('ERA\x20'))
+    this.tilesetName = TILESET_NICE_NAMES[this.tileset]
+
+    this.size = this._parseDimensions(sections.section('DIM\x20'));
     [this.forces, this._maxMeleePlayers] =
       this._parsePlayers(forceSection, sections.section('OWNR'), sections.section('SIDE'))
     this._tiles = sections.section('MTXM');
@@ -516,6 +583,45 @@ export default class Chk {
       }
       sprite.render(frame, localPalette, surface, x, y, width, height, scaleX, scaleY)
     }
+  }
+
+  // Ugly signature
+  _usedStringIds(forceSection, sections) {
+    let result = []
+    result = result.concat(this._parseScenarioProperties(sections.section('SPRP')))
+    for (let i = 0; i < 4; i++) {
+      result.push(forceSection.readUInt16LE(8 + i * 2))
+    }
+    const collectTriggerStrings = (section, briefing) => {
+      if (section !== undefined) {
+        for (let pos = 0; pos + 2400 <= section.length; pos += 2400) {
+          let strings = []
+          if (briefing) {
+            strings = briefingDisplayStrings(section.slice(pos, pos + 2400))
+          } else {
+            strings = triggerDisplayStrings(section.slice(pos, pos + 2400))
+          }
+          if (strings.length !== 0) {
+            result = result.concat(strings)
+          }
+        }
+      }
+    }
+    collectTriggerStrings(sections.get('TRIG'), false)
+    collectTriggerStrings(sections.get('MBRF'), true)
+    const unitStats = sections.get('UNIx') || sections.get('UNIS')
+    if (unitStats !== undefined) {
+      // The UNIx and UNIS are actually different from the end, but we don't read that far
+      for (let i = 0; i < UNIT_TYPE_COUNT; i++) {
+        if (unitStats.readUInt8(i) === 0) {
+          const string = unitStats.readUInt16LE(14 * UNIT_TYPE_COUNT + i * 2)
+          if (string !== 0) {
+            result.push(string)
+          }
+        }
+      }
+    }
+    return result
   }
 
   // Returns string indices [mapTitle, mapDescription]
