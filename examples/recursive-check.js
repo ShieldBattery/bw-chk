@@ -6,7 +6,6 @@
 /* eslint no-console: "off" */
 
 import async from 'async'
-import BufferList from 'bl'
 import Chk from '../'
 import fs from 'fs'
 import glob from 'glob'
@@ -20,8 +19,15 @@ let scmExErrs = 0
 let chkErrs = 0
 
 const mapQueue = async.queue((filename, finish) => {
-  checkmap(filename).then(() => finish(), err => {
+  checkmap(filename).catch(err => {
     console.log(err)
+    return err
+  })
+  .then(err => {
+    count += 1
+    if (count % 500 === 0) {
+      console.log(`${count} maps done`)
+    }
     finish(err)
   })
 }, 5)
@@ -81,52 +87,51 @@ function checkmap(filename) {
     })
   }
 
-  async function parseChk(buf) {
-    try {
-      count += 1
-      if (count % 500 === 0) {
-        console.log(`${count} maps done`)
-      }
-      const map = new Chk(buf)
-      if (fileAccess !== null) {
-        for (const mul of [8]) {
-          const minimap = await map.image(fileAccess, map.size[0] * mul, map.size[1] * mul)
-          const image = new PNG({
-            width: map.size[0] * mul,
-            height: map.size[1] * mul,
-            inputHasAlpha: false,
-          })
-          image.data = minimap
-          const imageFilename = `images/${path.basename(filename)}_x${mul}.png`
-          await writeImage(image, imageFilename)
-        }
-      }
-    } catch (err) {
+  async function renderImage(map) {
+    for (const mul of [8]) {
+      const minimap = await map.image(fileAccess, map.size[0] * mul, map.size[1] * mul)
+      const image = new PNG({
+        width: map.size[0] * mul,
+        height: map.size[1] * mul,
+        inputHasAlpha: false,
+      })
+      image.data = minimap
+      const imageFilename = `images/${path.basename(filename)}_x${mul}.png`
+      await writeImage(image, imageFilename)
+    }
+  }
+
+  function readmap(filename, res) {
+    const file = fs.createReadStream(filename)
+    const mpq = file.pipe(scmExtractor())
+    const chkError = err => {
       console.log('bw-chk: ' + err + ' (' + filename + ')')
       console.log(err.stack)
       chkErrs += 1
-      return
     }
-    goodMaps += 1
-  }
-
-  function readmap(filename, res, rej) {
-    const mpq = fs.createReadStream(filename)
-    mpq.pipe(scmExtractor())
-      .pipe(new BufferList((err, buf) => {
-        if (err) {
-          console.log('scm-extractor: ' + err + ' (' + filename + ')')
-          scmExErrs += 1
-          res()
-          return
-        }
-        parseChk(buf).then(res, rej)
-      }))
+    mpq.pipe(Chk.createStream((err, chk) => {
+      if (err) {
+        chkError(err)
+      } else if (fileAccess !== null) {
+        renderImage(chk).then(() => {
+          goodMaps += 1
+        })
+        .catch(chkError)
+      } else {
+        goodMaps += 1
+      }
+      res()
+    }))
     mpq.on('error', err => {
+      console.log('scm-extractor: ' + err + ' (' + filename + ')')
+      scmExErrs += 1
+      res()
+    })
+    file.on('error', err => {
       // Too many file descriptors
       if (err.code === 'EMFILE') {
         setTimeout(() => {
-          readmap(filename, res, rej)
+          readmap(filename, res)
         }, 1000)
       } else {
         console.log('huoh: ' + err)
@@ -135,5 +140,5 @@ function checkmap(filename) {
       }
     })
   }
-  return new Promise((res, rej) => readmap(filename, res, rej))
+  return new Promise(res => readmap(filename, res))
 }

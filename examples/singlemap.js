@@ -3,7 +3,6 @@
 
 /* eslint no-console: "off" */
 
-import BufferList from 'bl'
 import Chk from '../'
 import fs from 'fs'
 import {PNG} from 'pngjs'
@@ -17,24 +16,22 @@ const dataDir = process.argv[3]
 
 out.on('finish', () => {
   const stream = fs.createReadStream('extracted.chk')
-    .pipe(new BufferList((err, buf) => {
+    .pipe(Chk.createStream((err, chk) => {
       if (err) {
         console.log(err)
         return
       }
-      printMapInfo(buf).then(() => {}, err => {
+      printMapInfo(chk).catch(err => {
         console.log(err)
         console.log(err.stack)
-      });
+      })
   }))
   stream.on('error', err => {
     console.log(err)
   })
 })
 
-async function printMapInfo(buf) {
-  const map = new Chk(buf)
-
+async function printMapInfo(map) {
   console.log('Title: ' + map.title)
   console.log('Description: ' + map.description)
   console.log('Tileset: ' + map.tilesetName)

@@ -40,6 +40,10 @@ Setting encoding to `auto` causes the library to use a simple heuristic for dete
 Western (cp1252) and Korean (cp949) encodings. If `auto` is specified, the guessed encoding can
 be read from `chk.encoding`
 
+### static Chk.createStream([callback])
+A convinience function that creates a `Duplex` stream, outputting a `Chk` object. If
+`callback(err, chk)` is passed, it will also be called once the `Chk` has been parsed.
+
 ### chk.size
 Map size in tiles `[width, height]`
 

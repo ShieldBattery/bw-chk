@@ -1,6 +1,7 @@
 'use strict';
 
 import BufferList from 'bl'
+import { Duplex } from 'stream'
 import fs from 'fs'
 import iconv from 'iconv-lite'
 import SpriteGroup from './grp'
@@ -358,6 +359,37 @@ export default class Chk {
 
     [this.units, this.sprites] =
       this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
+  }
+
+  static createStream(callback) {
+    const stream = new Duplex({ readableObjectMode: true })
+    const buf = new BufferList()
+    stream._write = (data, enc, done) => {
+      buf.append(data)
+      done()
+    }
+    stream._read = () => {
+    }
+    stream.on('finish', () => {
+      let chk = null
+      try {
+        chk = new Chk(buf.slice())
+      } catch (err) {
+        if (callback) {
+          callback(err)
+        } else {
+          stream.emit('error', err)
+        }
+        return
+      }
+
+      if (callback) {
+        callback(undefined, chk)
+      }
+      stream.push(chk)
+      stream.push(null)
+    })
+    return stream
   }
 
   encoding() {

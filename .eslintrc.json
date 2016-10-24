@@ -30,7 +30,7 @@
             "error",
             "1tbs"
         ],
-        "callback-return": "error",
+        "callback-return": "off",
         "camelcase": "error",
         "class-methods-use-this": "off",
         "comma-dangle": ["error", "always-multiline"],

@@ -1,21 +1,19 @@
 'use strict';
 
-import BufferList from 'bl'
 import Chk from '../'
 import fs from 'fs'
 import {test} from 'tape'
 
 async function getMap(filename) {
-  const buf = await new Promise(res => {
+  return await new Promise(res => {
     fs.createReadStream('test/' + filename)
-      .pipe(new BufferList((err, buf) => {
+      .pipe(Chk.createStream((err, chk) => {
         if (err) {
           throw err
         }
-        res(buf)
+        res(chk)
     }))
   })
-  return new Chk(buf)
 }
 
 test('Simple map', async t => {
