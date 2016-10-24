@@ -9,10 +9,12 @@ import async from 'async'
 import BufferList from 'bl'
 import Chk from '../'
 import fs from 'fs'
+import glob from 'glob'
 import path from 'path'
 import {PNG} from 'pngjs'
 import scmExtractor from 'scm-extractor'
 
+let count = 0
 let goodMaps = 0
 let scmExErrs = 0
 let chkErrs = 0
@@ -26,35 +28,19 @@ const mapQueue = async.queue((filename, finish) => {
 
 const fileAccess = process.argv[3] ? Chk.fsFileAccess(process.argv[3]) : null
 
-function checkentry(filename) {
-  return new Promise((res, rej) => {
-    fs.stat(filename, async (err, stats) => {
-      if (err) {
-        console.log(err)
-        rej()
-        return
-      }
-      if (stats.isFile()) {
-        const extension = filename.slice(-4)
-        if (extension === '.scm' || extension === '.scx') {
-          mapQueue.push(filename)
-        }
-      } else if (stats.isDirectory()) {
-        await checkmaps(filename)
-      }
-      res()
-    })
-  })
-}
-
 function checkmaps(path) {
+  // The glob library requires forward slashes
+  const pattern = path.replace(/\\/g, '/') + '/**/*.sc[mx]'
   return new Promise((resolve, reject) => {
-    fs.readdir(path, async (err, files) => {
+    glob(pattern, { nodir: true }, async (err, files) => {
       if (err) {
         reject(err)
         return
       }
-      await Promise.all(files.map(file => checkentry(`${path}/${file}`)))
+
+      for (const file of files) {
+        mapQueue.push(file)
+      }
       resolve()
     })
   })
@@ -97,6 +83,10 @@ function checkmap(filename) {
 
   async function parseChk(buf) {
     try {
+      count += 1
+      if (count % 500 === 0) {
+        console.log(`${count} maps done`)
+      }
       const map = new Chk(buf)
       if (fileAccess !== null) {
         for (const mul of [8]) {
