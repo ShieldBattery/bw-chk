@@ -1,0 +1,11 @@
+test/
+examples/
+bwdata/
+
+/index.js
+/grp.js
+/units.json
+/sprites.json
+.babelrc
+.eslintrc.json
+.eslintignore

@@ -1,9 +1,14 @@
 {
   "name": "bw-chk",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Parses uncompressed Broodwar map files (scenario.chk).",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "engines": {
+    "node": ">= 6.0.0"
+  },
   "scripts": {
+    "build": "babel --out-dir lib *.js && cp units.json lib && cp sprites.json lib",
+    "lint": "eslint .",
     "test": "babel-tape-runner ./test/*.js"
   },
   "repository": {
@@ -22,7 +27,9 @@
   },
   "devDependencies": {
     "async": "^1.5.2",
-    "babel-preset-node5": "^11.0.0",
+    "babel-cli": "^6.18.0",
+    "babel-preset-es2017": "^6.16.0",
+    "babel-preset-node6": "^11.0.0",
     "babel-preset-stage-3": "^6.5.0",
     "babel-tape-runner": "^2.0.0",
     "eslint": "^3.7.1",
