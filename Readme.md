@@ -2,6 +2,10 @@
 
 Brood war map file parsing library.
 
+[![NPM](https://img.shields.io/npm/v/bw-chk.svg?style=flat)](https://www.npmjs.org/package/bw-chk)
+
+[![NPM](https://nodei.co/npm/bw-chk.png)](https://www.npmjs.org/package/bw-chk)
+
 This library only read the uncompressed `scenario.chk` files, which must be extracted
 from the `.scx` or `.scm` files first.
 
