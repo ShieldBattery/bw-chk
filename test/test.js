@@ -18,12 +18,13 @@ async function getMap(filename) {
 
 test('Simple map', async t => {
   const map = await getMap('simple.chk')
-  t.plan(5)
+  t.plan(6)
   t.deepEqual(map.title, 'Untitled Scenario.')
   t.deepEqual(map.description, 'Destroy all enemy buildings.')
   t.deepEqual(map.size, [64, 64])
   t.deepEqual(map.maxPlayers(true), 8)
   t.deepEqual(map.maxPlayers(false), 8)
+  t.deepEqual(map.forces[0].flags, 15)
 })
 
 test('Weird forces', async t => {

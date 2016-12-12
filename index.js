@@ -677,7 +677,7 @@ export default class Chk {
     for (let i = 0; i < 4; i += 1) {
       forces[i].name = this._strings.get(forceData.readUInt16LE(8 + i * 2))
       // 0x1 = Random start loca, 0x2 = Allied, 0x4 = Allied victory, 0x8 = Shared vision.
-      forces[i].flags = this._strings.get(forceData.readUInt8(16 + i))
+      forces[i].flags = forceData.readUInt8(16 + i)
       forces[i].players = []
     }
     let maxPlayers = 0
