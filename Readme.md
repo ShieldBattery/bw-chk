@@ -78,6 +78,14 @@ force has the following properties:
   properties:
   - `id` Player id, 0-based.
   - `computer` Boolean, is the slot is owned by a computer?
+    This is same as `type !== 'human'`, though the details of various non-human types
+    have differences.
+  - `type` Gives some idea of player's type:
+    - `computer`, `human`, and `rescueable` are common ones
+    - `neutral` is a computer that spawns in game, is not shown in lobby,
+      and is allied to everyone
+    - `unknown` is used for various odd ones which seem to behave inconsistently
+  - `typeId` is the type as integer, as seen by the game.
   - `race` Race as a integer. Only `0x5` allows players to select their race in UMS games.
     - `0x0` Zerg
     - `0x1` Terran

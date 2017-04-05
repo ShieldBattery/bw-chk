@@ -710,20 +710,37 @@ export default class Chk {
     const player = {
       id,
       race,
+      computer: true,
+      typeId: playerData.readUInt8(id),
     }
     // TODO: Not sure which players are actually inactive
-    switch (playerData.readUInt8(id)) {
-      // 3 is rescueable, 5 is normal computer
+    switch (player.typeId) {
+      case 1:
+        // Spawns in game, not in lobby, is enemy, is more aggressive than 2 and 4 (what)
+        player.type = 'unknown'
+      break
+      case 2:
+      case 4:
+        // Spawns in game, not in lobby, is enemy
+        player.type = 'unknown'
+      break
       case 3:
+        player.type = 'rescueable'
+      break
       case 5:
-        player.computer = true
-        return player
+        player.type = 'computer'
+      break
       case 6:
+        player.type = 'human'
         player.computer = false
-        return player
+      break
+      case 7:
+        player.type = 'neutral'
+      break
       default:
         return null
     }
+    return player
   }
 
   _parseUnits(unitData, spriteData) {

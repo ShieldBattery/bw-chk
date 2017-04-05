@@ -31,7 +31,9 @@ test('Weird forces', async t => {
   const map = await getMap('forces.chk')
   t.plan(6)
   for (let i = 0; i < 4; i += 1) {
-    t.deepEqual(map.forces[i].players, [{id: i, race: 5, computer: false}])
+    t.deepEqual(map.forces[i].players, [{
+      id: i, race: 5, computer: false, type: 'human', typeId: 6,
+    }])
   }
   t.deepEqual(map.maxPlayers(true), 4)
   t.deepEqual(map.maxPlayers(false), 8)
@@ -110,5 +112,23 @@ test('Encoding heuristic (1252)', async t => {
     const map = await getMap('wes_encoding/' + file)
     t.comment(file)
     t.deepEqual(map.encoding(), 'cp1252')
+  }
+})
+
+test('Unusual player types', async t => {
+  try {
+    // Various player types
+    const map = await getMap('player_types.chk')
+    t.plan(7)
+    t.deepEqual(map.forces[1].players[0].typeId, 2)
+    t.deepEqual(map.forces[2].players[0].typeId, 1)
+    t.deepEqual(map.forces[2].players[1].typeId, 4)
+    t.deepEqual(map.forces[2].players[2].typeId, 7)
+    t.deepEqual(map.forces[2].players[2].type, 'neutral')
+    t.deepEqual(map.forces[3].players[1].typeId, 3)
+    t.deepEqual(map.forces[3].players[1].type, 'rescueable')
+  } catch (e) {
+    t.comment(e.stack)
+    throw e
   }
 })
