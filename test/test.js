@@ -1,4 +1,4 @@
-'use strict';
+ 'use strict';
 
 import Chk from '../'
 import fs from 'fs'
