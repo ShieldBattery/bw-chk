@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "babel --out-dir lib *.js && cp units.json lib && cp sprites.json lib",
+    "clean": "rimraf lib",
     "lint": "eslint .",
     "test": "babel-tape-runner ./test/*.js"
   },
@@ -22,8 +23,8 @@
   "author": "Markus Heikkinen <ittevien@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "iconv-lite": "^0.4.13",
-    "bl": "^1.0.1"
+    "bl": "^1.0.1",
+    "iconv-lite": "^0.4.13"
   },
   "devDependencies": {
     "async": "^1.5.2",
@@ -35,6 +36,7 @@
     "eslint": "^3.7.1",
     "glob": "^7.1.1",
     "pngjs": "^2.2.0",
+    "rimraf": "^2.6.2",
     "scm-extractor": "^1.0.4",
     "tape": "^4.4.0"
   }
