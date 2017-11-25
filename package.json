@@ -7,7 +7,7 @@
     "node": ">= 6.0.0"
   },
   "scripts": {
-    "build": "babel --out-dir lib *.js && cp units.json lib && cp sprites.json lib",
+    "build": "babel --out-dir lib *.js && copyfiles units.json sprites.json lib",
     "clean": "rimraf lib",
     "lint": "eslint .",
     "test": "babel-tape-runner ./test/*.js"
@@ -33,6 +33,7 @@
     "babel-preset-node6": "^11.0.0",
     "babel-preset-stage-3": "^6.5.0",
     "babel-tape-runner": "^2.0.0",
+    "copyfiles": "^1.2.0",
     "eslint": "^3.7.1",
     "glob": "^7.1.1",
     "pngjs": "^2.2.0",
