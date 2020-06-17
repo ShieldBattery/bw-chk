@@ -411,7 +411,7 @@ export default class Chk {
   // Used for `Chk.image()`. Keeping the same object between multiple `image()` calls will
   // cache file accesses, reducing execution time.
   static fsFileAccess(directory) {
-    return Chk.customFileAccess(fname => (
+    const cb = fname => (
       new Promise((res, rej) => {
         fs.createReadStream(directory + '/' + fname.replace(/\\/g, '/'))
           .pipe(new BufferList((err, buf) => {
@@ -421,8 +421,9 @@ export default class Chk {
               res(buf)
             }
           }))
-      })
-    ))
+      }));
+    cb.directory = directory;
+    return Chk.customFileAccess(cb)
   }
 
   // Creates a FileAccess object with a custom file reading function `callback`.
@@ -809,22 +810,26 @@ class Tilesets {
 
   _addFiles(tilesetId, readCb) {
     const path = `tileset/${TILESET_NAMES[tilesetId]}`
-    const promises = ['.cv5', '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension))
+    const isExtended = fs.existsSync(
+      `${readCb.directory}/${path}.vx4ex`
+    );
+    const promises = ['.cv5', isExtended ? '.vx4ex' : '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension))
     const promise = Promise.all(promises)
       .then(files => {
         this._incompeleteTilesets[tilesetId] = null
-        this._addBuffers(tilesetId, files[0], files[1], files[2], files[3])
+        this._addBuffers(tilesetId, files[0], files[1], files[2], files[3], isExtended)
       })
     this._incompeleteTilesets[tilesetId] = promise
   }
 
-  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
+  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette, isExtended) {
     this._tilesets[tilesetId] = {
       tilegroup,
       megatiles,
       minitiles,
       palette,
       scaledMegatileCache: [],
+      isExtended,
     }
   }
 }
@@ -834,9 +839,17 @@ function colorAtMega(tileset, mega, x, y) {
   const miniY = Math.floor(y / 8)
   const colorX = Math.floor(x % 8)
   const colorY = Math.floor(y % 8)
-  const mini = tileset.megatiles.readUInt16LE(mega * 0x20 + (miniY * 4 + miniX) * 2)
+  let mini = null,
+    minitile = null
+
+  if (tileset.isExtended) {
+    mini = tileset.megatiles.readUInt32LE(mega * 0x40 + (miniY * 4 + miniX) * 4)
+    minitile = mini & 0xfffffffe
+  } else {
+    mini = tileset.megatiles.readUInt16LE(mega * 0x20 + (miniY * 4 + miniX) * 2)
+    minitile = mini & 0xfffe
+  }
   const flipped = mini & 1
-  const minitile = mini & 0xfffe
 
   let color = 0
   if (flipped) {
@@ -856,7 +869,7 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
   if (cached !== undefined) {
     return cached
   }
-  const megatileCount = tileset.megatiles.length / 0x20
+  const megatileCount = tileset.megatiles.length / (tileset.isExtended ? 0x40 : 0x20)
   const out = new Buffer(pixelsPerMega * pixelsPerMega * megatileCount * 3)
   let outPos = 0
   const pixelsPerScaled = 32 / pixelsPerMega
