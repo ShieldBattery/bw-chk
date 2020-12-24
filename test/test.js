@@ -132,3 +132,17 @@ test('Unusual player types', async t => {
     throw e
   }
 })
+
+test('Extended string section', async t => {
+  // Various player types
+  const map = await getMap('extended_strings.chk')
+  t.plan(2)
+  t.deepEqual(map.title, '\x07Polyp\x06oid \x061\x03.32')
+  t.deepEqual(
+      map.description,
+      '\x04Usually harmless.\r\n' +
+      '\x04However, there is a small risk of \x07malignancy.\r\n\r\n' +
+      'Created by KM-\r\n' +
+      'Released 2020.05.17.',
+  )
+})
