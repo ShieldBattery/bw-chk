@@ -247,7 +247,7 @@ class StrSection {
     const oldStr = sections.get('STR\x20')
     const newStr = sections.get('STRx')
     if (oldStr === undefined && newStr === undefined) {
-      throw new ChkError(`Must have either STR\x20 or STRx section`)
+      throw new ChkError('Must have either STR\x20 or STRx section')
     }
     this._isExtended = newStr !== undefined
     // Not actually sure which one has priority is both sections exist
