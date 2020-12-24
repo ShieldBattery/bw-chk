@@ -30,7 +30,7 @@ export class Grp {
     const frameHeight = header.readUInt8(3)
 
     const lineOffsets = this._buf.slice(frameOffset)
-    const out = new Buffer(frameWidth * frameHeight * 4)
+    const out = Buffer.alloc(frameWidth * frameHeight * 4)
     let outPos = 0
     for (let y = 0; y < frameHeight; y++) {
       const lineData = this._buf.slice(frameOffset + lineOffsets.readUInt16LE(y * 2))

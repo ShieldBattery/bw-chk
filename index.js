@@ -340,7 +340,7 @@ export default class Chk {
     let forceSection = sections.section('FORC')
     if (forceSection.length < 20) {
       const oldLength = forceSection.length
-      forceSection = Buffer.concat([forceSection, new Buffer(20 - oldLength)])
+      forceSection = Buffer.concat([forceSection, Buffer.alloc(20 - oldLength)])
       forceSection.fill(0, oldLength)
     }
 
@@ -584,7 +584,7 @@ export default class Chk {
       grp.render(0, palette, surface, x, y, width, height, scaleX, scaleY)
     }
     // Make a copy of palette to change the player colors as needed.
-    const localPalette = new Buffer(palette)
+    const localPalette = Buffer.from(palette)
     for (const unit of this.units) {
       if (!startLocationCheck(unit) || !meleeCheck(unit)) {
         continue
@@ -857,7 +857,7 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
     return cached
   }
   const megatileCount = tileset.megatiles.length / 0x20
-  const out = new Buffer(pixelsPerMega * pixelsPerMega * megatileCount * 3)
+  const out = Buffer.alloc(pixelsPerMega * pixelsPerMega * megatileCount * 3)
   let outPos = 0
   const pixelsPerScaled = 32 / pixelsPerMega
   const centeringOffset = pixelsPerScaled / 4
