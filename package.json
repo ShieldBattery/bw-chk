@@ -4,7 +4,7 @@
   "description": "Parses uncompressed Broodwar map files (scenario.chk).",
   "main": "lib/index.js",
   "engines": {
-    "node": ">= 6.0.0"
+    "node": ">= 12.0.0"
   },
   "scripts": {
     "build": "babel --out-dir lib *.js && copyfiles units.json sprites.json lib",
