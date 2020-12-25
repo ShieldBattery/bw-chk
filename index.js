@@ -1,5 +1,6 @@
 'use strict';
 
+import { access } from 'fs/promises'
 import BufferList from 'bl'
 import { Duplex } from 'stream'
 import fs from 'fs'
@@ -434,8 +435,16 @@ export default class Chk {
   // Used for `Chk.image()`. Keeping the same object between multiple `image()` calls will
   // cache file accesses, reducing execution time.
   static fsFileAccess(directory) {
-    return Chk.customFileAccess(fname => (
-      new Promise((res, rej) => {
+    return Chk.customFileAccess(async (fname, isOptional = false) => {
+      const filePath = directory + '/' + fname.replace(/\\/g, '/')
+      if (isOptional) {
+        const exists = await access(filePath)
+        if (!exists) {
+          return null
+        }
+      }
+
+      return new Promise((res, rej) => {
         fs.createReadStream(directory + '/' + fname.replace(/\\/g, '/'))
           .pipe(new BufferList((err, buf) => {
             if (err) {
@@ -445,13 +454,18 @@ export default class Chk {
             }
           }))
       })
-    ))
+    })
   }
 
   // Creates a FileAccess object with a custom file reading function `callback`.
   //
+  // `callback` is a function receiving 2 parameters:
+  //   - the filename of the file to be read
+  //   - whether the file is optional (that is, whether it not being present is an error)
+  //
   // `callback` must return a `Promise`, which resolves to a `Buffer` (-like object, BufferList is
-  // fine as well), containing the file.
+  // fine as well), containing the file. If the file is optional, `null` is also a valid return
+  // value, and signals the file was not present.
   static customFileAccess(callback) {
     return new FileAccess(callback)
   }
@@ -811,7 +825,7 @@ export default class Chk {
 class Tilesets {
   constructor() {
     this._tilesets = []
-    this._incompeleteTilesets = []
+    this._incompleteTilesets = []
   }
 
   async tileset(id, readCb) {
@@ -823,27 +837,34 @@ class Tilesets {
       return tileset
     }
 
-    if (!this._incompeleteTilesets[id]) {
+    if (!this._incompleteTilesets[id]) {
       this._addFiles(id, readCb)
     }
-    await this._incompeleteTilesets[id]
+    await this._incompleteTilesets[id]
     return this._tilesets[id]
   }
 
   _addFiles(tilesetId, readCb) {
     const path = `tileset/${TILESET_NAMES[tilesetId]}`
-    const promises = ['.cv5', '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension))
+    const promises =
+        ['.cv5', '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension, false))
+    // NOTE(tec27): vx4ex were added in Remastered and contain some additional tiles used by newer
+    // maps, but are not necessary for older maps.
+    promises.push(readCb(path + '.vx4ex', true))
     const promise = Promise.all(promises)
       .then(files => {
-        this._incompeleteTilesets[tilesetId] = null
-        this._addBuffers(tilesetId, files[0], files[1], files[2], files[3])
+        this._incompleteTilesets[tilesetId] = null
+        const isExtended = Boolean(files[5])
+        const megatiles = isExtended ? files[5] : files[1]
+        this._addBuffers(tilesetId, files[0], megatiles, files[2], files[3], files[4], isExtended)
       })
-    this._incompeleteTilesets[tilesetId] = promise
+    this._incompleteTilesets[tilesetId] = promise
   }
 
-  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette) {
+  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette, isExtended = false) {
     this._tilesets[tilesetId] = {
       tilegroup,
+      isExtended,
       megatiles,
       minitiles,
       palette,
@@ -857,10 +878,18 @@ function colorAtMega(tileset, mega, x, y) {
   const miniY = Math.floor(y / 8)
   const colorX = Math.floor(x % 8)
   const colorY = Math.floor(y % 8)
-  const mini = tileset.megatiles.readUInt16LE(mega * 0x20 + (miniY * 4 + miniX) * 2)
-  const flipped = mini & 1
-  const minitile = mini & 0xfffe
+  let mini = 0
+  let minitile = 0
 
+  if (tileset.isExtended) {
+    mini = tileset.megatiles.readUInt32LE(mega * 0x40 + (miniY * 4 + miniX) * 4)
+    minitile = mini & 0xfffffffe
+  } else {
+    mini = tileset.megatiles.readUInt16LE(mega * 0x20 + (miniY * 4 + miniX) * 2)
+    minitile = mini & 0xfffe
+  }
+
+  const flipped = mini & 1
   let color = 0
   if (flipped) {
     color = tileset.minitiles.readUInt8(minitile * 0x20 + colorY * 8 + (7 - colorX))
@@ -879,7 +908,7 @@ function generateScaledMegatiles(tileset, pixelsPerMega) {
   if (cached !== undefined) {
     return cached
   }
-  const megatileCount = tileset.megatiles.length / 0x20
+  const megatileCount = tileset.megatiles.length / (tileset.isExtended ? 0x40 : 0x20)
   const out = Buffer.alloc(pixelsPerMega * pixelsPerMega * megatileCount * 3)
   let outPos = 0
   const pixelsPerScaled = 32 / pixelsPerMega
