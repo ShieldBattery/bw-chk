@@ -31,7 +31,7 @@
     "copyfiles": "^2.4.1",
     "eslint": "^7.16.0",
     "glob": "^7.1.6",
-    "pngjs": "^6.0.0",
+    "pngjs": "^2.3.0",
     "rimraf": "^3.0.2",
     "scm-extractor": "^1.0.4",
     "tape": "^5.0.1"
