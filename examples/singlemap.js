@@ -3,7 +3,7 @@
 
 /* eslint no-console: "off" */
 
-import Chk from '../'
+import Chk from '../index.js'
 import fs from 'fs'
 import {PNG} from 'pngjs'
 import scmExtractor from 'scm-extractor'

@@ -1,6 +1,6 @@
 'use strict';
 
-import Chk from '../'
+import Chk from '../index.js'
 import fs from 'fs'
 import {test} from 'tape'
 

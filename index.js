@@ -4,9 +4,9 @@ import BufferList from 'bl'
 import { Duplex } from 'stream'
 import fs from 'fs'
 import iconv from 'iconv-lite'
-import SpriteGroup from './grp'
-import SPRITES from './sprites.json'
-import UNITS from './units.json'
+import SpriteGroup from './grp.js'
+import SPRITES from './sprites.js'
+import UNITS from './units.js'
 
 // Currently read sections.
 // If a section is not here, it will be ignored by getSections().

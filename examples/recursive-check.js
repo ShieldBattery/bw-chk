@@ -6,7 +6,7 @@
 /* eslint no-console: "off" */
 
 import async from 'async'
-import Chk from '../'
+import Chk from '../index.js'
 import fs from 'fs'
 import glob from 'glob'
 import path from 'path'
