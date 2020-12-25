@@ -438,14 +438,15 @@ export default class Chk {
     return Chk.customFileAccess(async (fname, isOptional = false) => {
       const filePath = directory + '/' + fname.replace(/\\/g, '/')
       if (isOptional) {
-        const exists = await access(filePath)
-        if (!exists) {
+        try {
+          await access(filePath)
+        } catch {
           return null
         }
       }
 
       return new Promise((res, rej) => {
-        fs.createReadStream(directory + '/' + fname.replace(/\\/g, '/'))
+        fs.createReadStream(filePath)
           .pipe(new BufferList((err, buf) => {
             if (err) {
               rej(err)
@@ -515,7 +516,10 @@ export default class Chk {
     const pixelsPerMegaX = width / this.size[0]
     const pixelsPerMegaY = height / this.size[1]
     const higher = Math.max(pixelsPerMegaX, pixelsPerMegaY)
-    const pixelsPerMega = Math.pow(2, ceil(Math.log2(higher)))
+    let pixelsPerMega = Math.pow(2, ceil(Math.log2(higher)))
+    if (pixelsPerMega < 1) {
+      pixelsPerMega = 1
+    }
 
     const scale = pixelsPerMega / 32
     const megatiles = generateScaledMegatiles(tileset, pixelsPerMega)
@@ -846,22 +850,30 @@ class Tilesets {
 
   _addFiles(tilesetId, readCb) {
     const path = `tileset/${TILESET_NAMES[tilesetId]}`
-    const promises =
-        ['.cv5', '.vx4', '.vr4', '.wpe'].map(extension => readCb(path + extension, false))
     // NOTE(tec27): vx4ex were added in Remastered and contain some additional tiles used by newer
     // maps, but are not necessary for older maps.
-    promises.push(readCb(path + '.vx4ex', true))
+    const promises = ['.cv5', '.vx4', '.vr4', '.wpe']
+        .map(extension => {
+          if (extension === '.vx4') {
+            return readCb(path + '.vx4ex', true)
+                .then(
+                    async x => x === null ? [await readCb(path + '.vx4'), false] : [x, true],
+                    async () => [await readCb(path + '.vx4'), false],
+                )
+          } else {
+            return readCb(path + extension, false)
+          }
+        })
     const promise = Promise.all(promises)
       .then(files => {
         this._incompleteTilesets[tilesetId] = null
-        const isExtended = Boolean(files[5])
-        const megatiles = isExtended ? files[5] : files[1]
-        this._addBuffers(tilesetId, files[0], megatiles, files[2], files[3], files[4], isExtended)
+        const [megatiles, isExtended] = files[1]
+        this._addBuffers(tilesetId, files[0], megatiles, files[2], files[3], isExtended)
       })
     this._incompleteTilesets[tilesetId] = promise
   }
 
-  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette, isExtended = false) {
+  _addBuffers(tilesetId, tilegroup, megatiles, minitiles, palette, isExtended) {
     this._tilesets[tilesetId] = {
       tilegroup,
       isExtended,

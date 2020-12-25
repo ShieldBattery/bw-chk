@@ -1,5 +1,5 @@
 node_modules
-bwdata
+/bwdata
 lib
 examples/images
 examples/extracted.chk

@@ -1,6 +1,7 @@
 'use strict';
 
 import Chk from '../index.js'
+import BufferList from 'bl'
 import fs from 'fs'
 import {test} from 'tape'
 
@@ -13,6 +14,60 @@ async function getMap(filename) {
         }
         res(chk)
     }))
+  })
+}
+
+function nonExtendedTilesetFileAccess() {
+  return Chk.customFileAccess(fname => {
+    if (fname.endsWith('.vx4ex')) {
+      return Promise.reject(new Error('This does not exist'))
+    }
+    // Give dummy 2-byte files for non-tileset files (Valid 0-frame grp)
+    if (!fname.startsWith('tileset')) {
+      return Promise.resolve(Buffer.alloc(2))
+    } else {
+      // Just using dummy ashworld-named tileset here for everything
+      const filePath = 'test/bwdata' + '/' + fname.replace(/\\/g, '/')
+        .replace('jungle', 'ashworld')
+        .replace('twilight', 'ashworld')
+      return new Promise((res, rej) => {
+        fs.createReadStream(filePath)
+          .pipe(new BufferList((err, buf) => {
+            if (err) {
+              rej(err)
+            } else {
+              res(buf)
+            }
+          }))
+      })
+    }
+  })
+}
+
+function extendedTilesetFileAccess() {
+  return Chk.customFileAccess(fname => {
+    if (fname.endsWith('.vx4')) {
+      return Promise.reject(new Error('This does not exist'))
+    }
+    // Give dummy 0-byte files for non-tileset files
+    if (!fname.startsWith('tileset')) {
+      return Promise.resolve(Buffer.alloc(2))
+    } else {
+      // Just using dummy ashworld-named tileset here for everything
+      const filePath = 'test/bwdata' + '/' + fname.replace(/\\/g, '/')
+        .replace('jungle', 'ashworld')
+        .replace('twilight', 'ashworld')
+      return new Promise((res, rej) => {
+        fs.createReadStream(filePath)
+          .pipe(new BufferList((err, buf) => {
+            if (err) {
+              rej(err)
+            } else {
+              res(buf)
+            }
+          }))
+      })
+    }
   })
 }
 
@@ -54,10 +109,28 @@ test('Section abuse', async t => {
   t.deepEqual(map.size, [128, 128])
 })
 
+test('Minimap, nonext vx4', async t => {
+  // The test vx4 file has tiles filled with vr4 id 0x1, which in turn
+  // is full of palette color 0x1, which is 0xffffff
+  const map = await getMap('simple.chk')
+  const minimap = await map.image(nonExtendedTilesetFileAccess(), 32, 32)
+  t.plan(1)
+  t.deepEqual(minimap, Buffer.alloc(32 * 32 * 3, 0xff))
+})
+
+test('Minimap, ext vx4', async t => {
+  // The test vx4ex file has tiles filled with vr4 id 0x2, which in turn
+  // is full of palette color 0x2, which is 0x808080
+  const map = await getMap('simple.chk')
+  const minimap = await map.image(extendedTilesetFileAccess(), 32, 32)
+  t.plan(1)
+  t.deepEqual(minimap, Buffer.alloc(32 * 32 * 3, 0x80))
+})
+
 test('Invalid tile in MTXM', async t => {
   try {
     const map = await getMap('minimap.chk')
-    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
+    const minimap = await map.image(nonExtendedTilesetFileAccess(), 128, 128)
     t.plan(1)
     t.notDeepEqual(minimap, undefined)
   } catch (e) {
@@ -69,7 +142,7 @@ test('Invalid tile in MTXM', async t => {
 test('Invalid unit', async t => {
   try {
     const map = await getMap('invalid_unit.chk')
-    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
+    const minimap = await map.image(nonExtendedTilesetFileAccess(), 128, 128)
     t.plan(1)
     t.notDeepEqual(minimap, undefined)
   } catch (e) {
@@ -82,7 +155,7 @@ test('Out-of-bounds sprite', async t => {
   try {
     // The map has 11 sprites but one of them is an invalid, out-of-bounds one
     const map = await getMap('oob_sprite.chk')
-    const minimap = map.image(Chk.fsFileAccess('bwdata'), 128, 128)
+    const minimap = await map.image(nonExtendedTilesetFileAccess(), 128, 128)
     t.plan(2)
     t.notDeepEqual(minimap, undefined)
     t.deepEqual(map.sprites.length, 10)
