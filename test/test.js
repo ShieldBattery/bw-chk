@@ -1,7 +1,7 @@
 'use strict';
 
-import Chk from '../index.js'
 import BufferList from 'bl'
+import Chk from '../index.js'
 import fs from 'fs'
 import {test} from 'tape'
 
@@ -27,7 +27,7 @@ function nonExtendedTilesetFileAccess() {
       return Promise.resolve(Buffer.alloc(2))
     } else {
       // Just using dummy ashworld-named tileset here for everything
-      const filePath = 'test/bwdata' + '/' + fname.replace(/\\/g, '/')
+      const filePath = 'test/bwdata/' + fname.replace(/\\/g, '/')
         .replace('jungle', 'ashworld')
         .replace('twilight', 'ashworld')
       return new Promise((res, rej) => {
@@ -54,7 +54,7 @@ function extendedTilesetFileAccess() {
       return Promise.resolve(Buffer.alloc(2))
     } else {
       // Just using dummy ashworld-named tileset here for everything
-      const filePath = 'test/bwdata' + '/' + fname.replace(/\\/g, '/')
+      const filePath = 'test/bwdata/' + fname.replace(/\\/g, '/')
         .replace('jungle', 'ashworld')
         .replace('twilight', 'ashworld')
       return new Promise((res, rej) => {

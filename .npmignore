@@ -1,6 +1,12 @@
 test/
 examples/
 bwdata/
+tmp/
+starcraft_brood_war_maps_archive/
 
 .eslintrc.json
 .eslintignore
+minimap.png
+koreanmaps.py
+extracted.chk
+.gitattributes

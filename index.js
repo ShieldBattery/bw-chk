@@ -857,7 +857,13 @@ class Tilesets {
           if (extension === '.vx4') {
             return readCb(path + '.vx4ex', true)
                 .then(
-                    async x => x === null ? [await readCb(path + '.vx4'), false] : [x, true],
+                    async x => {
+                      if (x === null) {
+                        return [await readCb(path + '.vx4'), false]
+                      } else {
+                        return [x, true]
+                      }
+                    },
                     async () => [await readCb(path + '.vx4'), false],
                 )
           } else {
