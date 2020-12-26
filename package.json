@@ -1,6 +1,6 @@
 {
   "name": "bw-chk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Parses uncompressed Broodwar map files (scenario.chk).",
   "main": "./index.js",
   "engines": {
