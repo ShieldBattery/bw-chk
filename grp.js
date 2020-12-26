@@ -6,7 +6,7 @@
 // Grp buffers are currently not validated, passing invalid
 // sprite data may result in exceptions during render() calls.
 
-export class Grp {
+class Grp {
   constructor(buf) {
     this._buf = buf
   }
@@ -135,7 +135,7 @@ export class Grp {
 // Mostly just a id -> key -> Grp mapping which shares
 // buffers when several ids have the same key.
 // Supports setting/getting by unit or sprite id.
-export default class GrpGroup {
+module.exports = class GrpGroup {
   constructor(units, sprites) {
     this._grps = new Map()
     this._units = units
@@ -168,3 +168,4 @@ export default class GrpGroup {
   }
 }
 
+module.exports.Grp = Grp

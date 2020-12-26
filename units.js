@@ -1,4 +1,4 @@
-export default [
+module.exports = [
   'terran\\marine.grp',
   'terran\\ghost.grp',
   'terran\\vulture.grp',

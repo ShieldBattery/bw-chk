@@ -1,13 +1,13 @@
 'use strict';
 
-import { access } from 'fs/promises'
-import BufferList from 'bl'
-import { Duplex } from 'stream'
-import fs from 'fs'
-import iconv from 'iconv-lite'
-import SpriteGroup from './grp.js'
-import SPRITES from './sprites.js'
-import UNITS from './units.js'
+const { access } = require('fs/promises')
+const BufferList = require('bl')
+const { Duplex } = require('stream')
+const fs = require('fs')
+const iconv = require('iconv-lite')
+const SpriteGroup = require('./grp.js')
+const SPRITES = require('./sprites.js')
+const UNITS = require('./units.js')
 
 // Currently read sections.
 // If a section is not here, it will be ignored by getSections().
@@ -352,7 +352,7 @@ class StrSection {
   }
 }
 
-export default class Chk {
+module.exports = class Chk {
   constructor(buf, options) {
     const opts = Object.assign({
       encoding: 'auto',

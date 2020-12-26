@@ -1,4 +1,4 @@
-export default [
+module.exports = [
   'thingy\\tileset\\ashworld\\rock01.grp',
   'thingy\\tileset\\ashworld\\rock02.grp',
   'thingy\\tileset\\ashworld\\rock03.grp',
