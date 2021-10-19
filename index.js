@@ -272,16 +272,13 @@ class StrSection {
     if (encoding === 'auto') {
       this.encoding = this._determineEncoding(usedStrings())
     } else {
-      this.encoding = encoding
+      this.encoding = [encoding]
     }
   }
 
-  // String indices are 1-based.
-  // 0 might be used at some parts for "no string"?
-  get(index) {
-    // Though bw may actually accept index 0 as well?
+  _rawStringSlice(index) {
     if (index > this._amount || index === 0) {
-      return ''
+      return null
     }
     let offset = 0
     if (this._isExtended) {
@@ -290,31 +287,66 @@ class StrSection {
       offset = this._data.readUInt16LE(index * 2)
     }
     if (offset >= this._data.length) {
-      return ''
+      return null
     }
     const end = this._data.indexOf(0, offset)
-    return iconv.decode(this._data.slice(offset, end), this.encoding)
+    return this._data.slice(offset, end)
   }
 
+  // String indices are 1-based.
+  // 0 might be used at some parts for "no string"?
+  get(index) {
+    // Though bw may actually accept index 0 as well?
+    const slice = this._rawStringSlice(index)
+    let text = ''
+    if (slice === null) {
+      return text
+    }
+    for (let i = 0; i < this.encoding.length; i++) {
+      text = iconv.decode(slice, this.encoding[i])
+      if (i === this.encoding.length + 1 || !text.includes('\ufffd')) {
+        break
+      }
+    }
+    return text
+  }
+
+  // SC 1.16.1 used either cp949 or cp1252 encoding for all map strings depending
+  // on whether the system locale was set to Korea or not.
+  // SC:R on the other hand, considers each string separately,
+  // defaulting to UTF-8(*), and if the string cannot be decoded with UTF-8,
+  // SC:R guesses between 949 and 1252 based on the string contents.
+  //
+  // (*) Unit names(?) seem to have special handling to use 949 unless
+  // the 949-vs-1252 guess prefers 1252, in which case UTF-8 used if
+  // possible before falling back to 1252.
+  // Doesn't make much sense but that's how it appears to go.
+  //
+  // This library tries to do a bit better than SC:R does, as maps with full 1252/949
+  // encoding may have a few short strings that weren't intended to be UTF-8 but
+  // could be decoded using it. At the same time, we want to try to be compatible
+  // with maps that in do mix UTF-8 and legacy encoding -- they do exist, so when
+  // we detect the map be using UTF-8, the `get()` function will prefer UTF-8 with
+  // fallback to the other codepage like SC:R does.
+  //
+  // I have seen few maps that mixes 949/1252 encodings due to being edited over
+  // years(?) by different creators. Not trying to support such cases.. (For now?)
   _determineEncoding(usedStrings) {
     const isHangul = c => (c >= 0xac00 && c < 0xd7b0) || (c >= 0x3130 && c < 0x3190)
     // Strings that seem to be Korean
     let korStrings = 0
     // Strings that don't seem to be Korean, but still have non-ASCII chars
     let otherStrings = 0
+    // Strings that decode with UTF-8, and *are not 949 Korean strings*
+    let utf8Strings = 0
     for (const string of usedStrings) {
-      if (string >= this._amount) {
-        // Should not happen if usedStrings is correct and the map is not horribly corrupt?
-        continue
-      }
-      const offset = this._data.readUInt16LE(string * 2)
-      if (offset >= this._data.length) {
+      const raw = this._rawStringSlice(string)
+      if (raw === null) {
         continue
       }
 
-      const end = this._data.indexOf(0, offset)
-      const raw = this._data.slice(offset, end)
       const korean = iconv.decode(raw, 'cp949')
+      const utf8 = iconv.decode(raw, 'utf8')
       let hangulChars = 0
       let otherNonAscii = 0
       const nonAscii1252 = new Set()
@@ -323,13 +355,17 @@ class StrSection {
           nonAscii1252.add(char)
         }
       }
+      const isValidUtf8 = !utf8.includes('\ufffd')
       for (let idx = 0; idx < korean.length; idx++) {
         const code = korean.charCodeAt(idx)
         if (code === 0xfffd) {
           // Replacement character - was not valid 949 encoding
           // Sometimes there may be maps that have been edited in both encodings,
           // so just take this as a heavy hint towards 1252
-          otherStrings = otherStrings + 5
+          if (!isValidUtf8) {
+            otherStrings = otherStrings + 5
+          }
+          hangulChars = 0
           break
         } else if (isHangul(code)) {
           hangulChars++
@@ -340,15 +376,42 @@ class StrSection {
       // Since some 1252 characters can appear as hangul, if there is only a single
       // non-ascii character used, assume it is 1252.
       const hadHangul = hangulChars >= 1 && nonAscii1252.size >= 2
-      if (hadHangul && hangulChars >= 5) {
+      if (isValidUtf8 && nonAscii1252.size > 10) {
+        // More than 10 non-ASCII chars and valid UTF-8; this map definitely
+        // should be counted as having UTF-8 strings.
+        utf8Strings += 50
+      } else if (hadHangul && hangulChars >= 5) {
         korStrings++
       } else if (hadHangul && hangulChars >= 1 && hangulChars > otherNonAscii) {
         korStrings++
-      } else if (otherNonAscii > 0 || hangulChars > 0) {
-        otherStrings++
+      } else if (nonAscii1252.size > 0) {
+        if (isValidUtf8) {
+          utf8Strings++
+        } else {
+          otherStrings++
+        }
       }
     }
-    return korStrings >= otherStrings ? 'cp949' : 'cp1252'
+    const nonUtf8Encoding = korStrings >= otherStrings ? 'cp949' : 'cp1252'
+    let useUtf8 = false
+    if (nonUtf8Encoding === 'cp949') {
+      if (utf8Strings > 5 || (utf8Strings > 0 && korStrings < 20)) {
+        useUtf8 = true
+      }
+    } else {
+      if (utf8Strings > 10 || (utf8Strings > 0 && otherStrings < 20)) {
+        useUtf8 = true
+      }
+    }
+    if (useUtf8) {
+      if (nonUtf8Encoding === 'cp949' && korStrings === 0) {
+        return ['utf8']
+      } else {
+        return ['utf8', nonUtf8Encoding]
+      }
+    } else {
+      return [nonUtf8Encoding]
+    }
   }
 }
 
@@ -369,8 +432,13 @@ module.exports = class Chk {
     }
 
     const usedStrings = () => this._usedStringIds(forceSection, sections)
+      this._usedStrings = usedStrings()
     this._strings = new StrSection(sections, opts.encoding, usedStrings)
-    this._encoding = this._strings.encoding;
+    if (this._strings.encoding.length === 1) {
+      this._encoding = this._strings.encoding[0]
+    } else {
+      this._encoding = 'mixed'
+    }
     [this.title, this.description] = this._parseScenarioProperties(sections.section('SPRP'))
       .map(index => this._strings.get(index))
     this.tileset = this._parseTileset(sections.section('ERA\x20'))

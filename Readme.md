@@ -41,8 +41,8 @@ Parses the chk synchronously. If the buffer is not a valid chk, an exception wit
 ```
 
 Setting encoding to `auto` causes the library to use a simple heuristic for determining between
-Western (cp1252) and Korean (cp949) encodings. If `auto` is specified, the guessed encoding can
-be read from `chk.encoding`
+Western (cp1252), Korean (cp949) and UTF-8 (utf8) encodings. If `auto` is specified, the guessed
+encoding can be read from `chk.encoding`
 
 ### static Chk.createStream([callback])
 A convinience function that creates a `Duplex` stream, outputting a `Chk` object. If
@@ -109,10 +109,10 @@ Each sprite has the following properties:
 - `spriteId` is the sprite type (integer)
 
 ### chk.encoding()
-The encoding specified in constructor, or the heuristically determined one if 'auto' was
+The encoding specified in constructor, or the heuristically determined one if `'auto'` was
 specified. Note that most English maps may be reported to have Korean (cp949) encoding, as
-both encodings are ASCII-compatible. May be extended in future to also return 'mixed', if
-the map mixes both 1252 and 949.
+both encodings are ASCII-compatible. If the map was detected to use multiple encodings,
+`'mixed'` will be returned.
 
 ### chk.maxPlayers(isUms)
 Returns the amount of *human* players that can play the map. As the player limit can be

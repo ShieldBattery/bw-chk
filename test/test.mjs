@@ -6,13 +6,14 @@ import fs from 'fs'
 import {test} from 'tape'
 
 async function getMap(filename) {
-  return await new Promise(res => {
+  return await new Promise((res, rej) => {
     fs.createReadStream('test/' + filename)
       .pipe(Chk.createStream((err, chk) => {
         if (err) {
-          throw err
+          rej(err)
+        } else {
+          res(chk)
         }
-        res(chk)
     }))
   })
 }
@@ -172,8 +173,8 @@ test('Encoding heuristic (949)', async t => {
   const files = fs.readdirSync('test/kor_encoding')
   t.plan(files.length)
   for (const file of files) {
-    const map = await getMap('kor_encoding/' + file)
     t.comment(file)
+    const map = await getMap('kor_encoding/' + file)
     t.deepEqual(map.encoding(), 'cp949')
   }
 })
@@ -182,10 +183,42 @@ test('Encoding heuristic (1252)', async t => {
   const files = fs.readdirSync('test/wes_encoding')
   t.plan(files.length)
   for (const file of files) {
-    const map = await getMap('wes_encoding/' + file)
     t.comment(file)
+    const map = await getMap('wes_encoding/' + file)
     t.deepEqual(map.encoding(), 'cp1252')
   }
+})
+
+test('Encoding heuristic (Mixed)', async t => {
+  const map = await getMap('mixed_encoding_1.chk')
+  t.deepEqual(map.encoding(), 'mixed')
+  t.deepEqual(map.title, '\x06피아노\x03 마스터\x04v5.3A')
+  t.deepEqual(
+      map.description,
+      '제작 : 믹넛 TTNSM / korea\r\n' +
+      '아이디어 : DeratoY (EDAC)\r\n\r\n' +
+      'Thanks for Artanis / 맛있는빙수 / Terran_Wraith\r\n' +
+      'Thanks for You'
+  )
+})
+
+test('Encoding heuristic (Mixed 2)', async t => {
+  const map = await getMap('mixed_encoding_2.chk')
+  t.deepEqual(map.encoding(), 'mixed')
+  t.deepEqual(map.description, 'Défendre Map by Sadrio Fuck you No join me ist not me, not sex')
+})
+
+test('Encoding heuristic (UTF-8)', async t => {
+  const map = await getMap('utf8_encoding_1.chk')
+  t.deepEqual(map.encoding(), 'utf8')
+  t.deepEqual(
+      map.description,
+      'Fall asleep in the mirror,\r\n' +
+      'Inside of this endless forever repeating nightmare\r\n' +
+      'Please be stuck here like this forever\r\n\r\n' +
+      'Created by - 효진(CrystalDrag)\r\n' +
+      'Version 1.31'
+  )
 })
 
 test('Unusual player types', async t => {
