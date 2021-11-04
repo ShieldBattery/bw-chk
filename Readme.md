@@ -148,6 +148,11 @@ image() calls will cache some of the file parsing work.
 }
 ```
 
+### chk.triggers()
+Returns an object which is `Iterable`, producting `Trigger` objects.
+The returned object also has `size` property for retrieving total amount of triggers,
+and `iterateFrom(n)` method for iterating starting from `n`th trigger.
+
 ### static Chk.fsFileAccess(directory)
 Creates a FileAccess object, which can be passed to `chk.image()` for accessing bw's files which
 have been extracted to `directory`.
@@ -157,6 +162,183 @@ Creates a FileAccess object with a custom function for reading files.
 
 The function takes in a string containing the filename (e.g. 'unit\\terran\\marine.grp'),
 and must return a promise which resolves to a `Buffer` containing the file's data.
+
+### static Chk.actionIds()
+Returns an object with constants for action ID integers. See [Constants.md](./Constants.md) for
+a list of the constant names and their values.
+
+### static Chk.conditionIds()
+Returns an object with constants for condition ID integers. See [Constants.md](./Constants.md) for
+a list of the constant names and their values.
+
+## Class: Trigger
+Triggers are returned by calling `chk.triggers()`.
+
+### trigger.players()
+Returns array containing player and group ids representing the players that get a copy
+of this trigger.
+
+### trigger.conditions()
+Returns an object which is `Iterable`, producting `Condition` objects for the trigger.
+
+### trigger.allConditions()
+Returns an object which is `Iterable`, producting `Condition` objects for the trigger,
+including any disabled conditions.
+
+### trigger.actions()
+Returns an object which is `Iterable`, producting `Action` objects for the trigger.
+
+### trigger.allActions()
+Returns an object which is `Iterable`, producting `Action` objects for the trigger,
+including any disabled actions.
+
+### trigger.rawByteView()
+Returns a shared `Buffer` slice to the 2400 raw bytes of the trigger structure.
+Modifying this slice will affect any other `Trigger` referring to this trigger;
+none of the trigger objects in this library take private copies of the trigger bytes.
+
+## Class: TriggerAction
+
+### action.id()
+Returns integer ID for the action type.
+See `Chk.actionIds` for action ID constants.
+
+### action.isDisabled()
+Returns `true` if the action is disabled
+(Game will not execute disabled actions)
+
+Only necessary when using `trigger.allActions()`; `trigger.actions()` already filters
+out any disabled actions.
+
+### action.params()
+Returns object containing parameters of the action.
+Only fields that the action uses (Based on action ID) will be set.
+Any of the enumeration fields can have 'Unknown' as a value if the raw bytes
+contain an unexpected value.
+
+```
+{
+  // Location ID used by the action. Source location for Move Unit, Issue Order.
+  // Location to be searched for unit to be centered on for Move Location.
+  //
+  // NOTE: The index here is converted to be 0-based, even though internally in the map file the
+  // value 1 refers to the first location and value 0 makes action do nothing.
+  // If a map regardless has 0 for the raw location byte of a action, it becomes -1 here.
+  location,
+  // Destination location ID for Give Unit, Issue Order.
+  // Index is converted to be 0-based as with `location`.
+  destLocation,
+  // Location to be moved for Move Location.
+  // Index is converted to be 0-based as with `location`.
+  movedLocation,
+  // Text string for Display Text, Transmission, Comment.
+  text,
+  // Sound filename for Play Sound, Transmission.
+  soundFile,
+  // Time in milliseconds for Wait, Talking Portrait;
+  // Sound time in milliseconds for Play Sound, Transmission.
+  // Note that Countdown Timer action's time value and Transmission action's transmission time
+  // modifier is not in this field, but in `amount` (and in seconds in Countdown Timer's case).
+  time,
+  // Player or group the action is limited to.
+  player,
+  // Receiving player for Give Unit.
+  destPlayer,
+  // Numeric amount for the action.
+  amount,
+  // 'Add', 'Set', 'Subtract' for any action which uses `amount`.
+  modifierType,
+  // Unit ID for the action.
+  unitId,
+  // Amount of units affected by the action. 0 for 'All Units'.
+  unitAmount,
+  // One of 'Move', 'Attack', 'Patrol', used by Issue Order
+  unitOrder,
+  // One of 'Enemy', 'Ally', 'AlliedVictory', used by Set Alliance
+  allianceStatus,
+  // Switch ID for Set Switch.
+  switchId,
+  // One of 'Set', 'Clear', 'Toggle', 'Randomize', used by Set Switch
+  switchState,
+  // One of 'Set', 'Clear', 'Toggle', used by Set Doodad State, Set Invincibility,
+  // Leaderboard Computers.
+  state,
+  // One of 'Ore', 'Gas', 'OreAndGas', for actions using resources.
+  resourceType,
+  // One of 'Total', 'Units', 'Buildings', 'UnitsAndBuildings', 'Kills', 'Razings',
+  // 'KillsAndRazings', 'Custom' for score actions.
+  scoreType,
+  // Bool for specifying if the text is shown when subtitles are disabled,
+  // Used by Display Text, Transmission.
+  alwaysDisplay,
+  // 4-byte ID for an AI script. All scripts in unmodded game have IDs with meaningful
+  // string representation. For example the "Expansion Terran Campaign Medium" script has
+  // ID 0x544d4578, corresponding to ASCII 'TMEx'
+  aiScript,
+}
+```
+
+### action.rawByteView()
+
+Returns a shared `Buffer` slice containing the 32 raw bytes of the action structure.
+Modifying this slice will affect any other `TriggerAction` referring to this same action,
+none of the trigger objects in this library take private copies of the trigger bytes.
+
+## Class: TriggerCondition
+
+### condition.id()
+
+Returns integer ID for the condition type.
+See `Chk.conditionIds` for condition ID constants.
+
+### condition.isDisabled()
+
+Returns `true` if the condition is disabled.
+(Game skips over disabled conditions without requiring them to pass)
+
+Only necessary when using `trigger.allConditions()`; `trigger.conditions()` already filters
+out any disabled conditions.
+
+### condition.params()
+
+Returns object containing parameters of the condition.
+Only fields that the condition uses (Based on condition ID) will not be `undefined`.
+Any of the enumeration fields can have 'Unknown' as a value if the raw bytes
+contain an unexpected value.
+
+```
+{
+  // Location ID used by the condition. 1-based index, 0 here makes conditions always fail.
+  //
+  // NOTE: The index here is converted to be 0-based, even though internally in the map file the
+  // value 1 refers to the first location and value 0 makes condition always fail.
+  // If a map regardless has 0 for the raw location byte of a action, it becomes -1 here.
+  location,
+  // Player or group the condition is checking.
+  player,
+  // Numeric amount for the condition.
+  amount,
+  // 'AtLeast', 'AtMost', 'Exactly' for any condition which uses `amount`.
+  comparisionType,
+  // Unit ID for the condition.
+  unitId,
+  // Switch ID for the Switch condition.
+  switchId,
+  // 'Set' or 'Clear' for the Switch condition.
+  switchState,
+  // One of 'Ore', 'Gas', 'OreAndGas', for conditions using resources.
+  resourceType,
+  // One of 'Total', 'Units', 'Buildings', 'UnitsAndBuildings', 'Kills', 'Razings',
+  // 'KillsAndRazings', 'Custom' for score conditions.
+  scoreType,
+}
+```
+
+### condition.rawByteView()
+
+Returns a shared `Buffer` slice containing the 20 raw bytes of the condition structure.
+Modifying this slice will affect any other `TriggerCondition` referring to this same condition,
+none of the trigger objects in this library take private copies of the trigger bytes.
 
 ## License
 MIT

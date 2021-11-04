@@ -6,6 +6,7 @@ const { Duplex } = require('stream')
 const fs = require('fs')
 const iconv = require('iconv-lite')
 const SpriteGroup = require('./grp.js')
+const triggers = require('./triggers.js')
 const SPRITES = require('./sprites.js')
 const UNITS = require('./units.js')
 
@@ -451,6 +452,13 @@ module.exports = class Chk {
 
     [this.units, this.sprites] =
       this._parseUnits(sections.section('UNIT'), sections.section('THG2'))
+
+    const triggerBuf = sections.get('TRIG')
+    if (triggerBuf !== undefined) {
+      this._triggers = new triggers.Triggers(this._strings, triggerBuf)
+    } else {
+      this._triggers = new triggers.Triggers(this._strings, Buffer.alloc(0))
+    }
   }
 
   static createStream(callback) {
@@ -496,6 +504,18 @@ module.exports = class Chk {
     } else {
       return this._maxMeleePlayers
     }
+  }
+
+  triggers() {
+    return this._triggers
+  }
+
+  static actionIds() {
+    return triggers.actionIds
+  }
+
+  static conditionIds() {
+    return triggers.conditionIds
   }
 
   // Creates a FileAccess object, where `directory` contains bw's sprite and tileset files.

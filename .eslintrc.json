@@ -42,7 +42,6 @@
             }
         ],
         "comma-style": "error",
-        "complexity": "error",
         "computed-property-spacing": [
             "error",
             "never"
@@ -79,7 +78,7 @@
                 "before": true
             }
         ],
-        "line-comment-position": "error",
+        "line-comment-position": "off",
         "linebreak-style": [
             "error",
             "unix"
@@ -127,7 +126,7 @@
         "no-implicit-coercion": "error",
         "no-implicit-globals": "error",
         "no-implied-eval": "error",
-        "no-inline-comments": "error",
+        "no-inline-comments": "off",
         "no-invalid-this": "error",
         "no-iterator": "error",
         "no-label-var": "error",
@@ -174,7 +173,7 @@
         "no-ternary": "off",
         "no-throw-literal": "error",
         "no-trailing-spaces": "error",
-        "no-undef-init": "error",
+        "no-undef-init": "off",
         "no-undefined": "off",
         "no-unmodified-loop-condition": "error",
         "no-unneeded-ternary": "error",

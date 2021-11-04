@@ -252,3 +252,348 @@ test('Extended string section', async t => {
       'Released 2020.05.17.',
   )
 })
+
+test('Trigger conditions', async t => {
+  const map = await getMap('triggers.chk')
+  let first = true
+  t.plan(21 * 2 + 2)
+  const ids = Chk.conditionIds()
+  const check = (t, cond, id, paramsCompare) => {
+    t.deepEqual(cond.id(), id)
+    const paramsIn = cond.params()
+    let params = {}
+    for (const [k, v] of Object.entries(paramsIn).filter(([key, val]) => val !== undefined)) {
+      params[k] = v
+    }
+    t.deepEqual(params, paramsCompare)
+  }
+  for (const trigger of map.triggers()) {
+    const conditions = trigger.conditions()
+    if (first) {
+      check(
+          t, conditions.next().value, ids.ACCUMULATE,
+          { player: 3, amount: 888, comparisionType: 'AtMost', resourceType: 'Gas' },
+      )
+      check(
+          t, conditions.next().value, ids.ALWAYS,
+          { },
+      )
+      check(
+          t, conditions.next().value, ids.BRING,
+          { player: 3, amount: 888, unitId: 7, location: 5, comparisionType: 'Exactly' },
+      )
+      check(
+          t, conditions.next().value, ids.COMMAND,
+          { player: 3, amount: 888, unitId: 7, comparisionType: 'Exactly' },
+      )
+      check(
+          t, conditions.next().value, ids.COMMAND_LEAST,
+          { unitId: 8 },
+      )
+      check(
+          t, conditions.next().value, ids.COMMAND_LEAST_AT,
+          { unitId: 8, location: 5 },
+      )
+      check(
+          t, conditions.next().value, ids.COMMAND_MOST,
+          { unitId: 8 },
+      )
+      check(
+          t, conditions.next().value, ids.COMMAND_MOST_AT,
+          { unitId: 8, location: 5 },
+      )
+      check(
+          t, conditions.next().value, ids.COUNTDOWN_TIMER,
+          { amount: 888, comparisionType: 'AtLeast' },
+      )
+      check(
+          t, conditions.next().value, ids.DEATHS,
+          { amount: 888, comparisionType: 'AtLeast', player: 3, unitId: 8 },
+      )
+      check(
+          t, conditions.next().value, ids.ELAPSED_TIME,
+          { amount: 888, comparisionType: 'AtLeast' },
+      )
+      check(
+          t, conditions.next().value, ids.HIGHEST_SCORE,
+          { scoreType: 'KillsAndRazings', },
+      )
+      check(
+          t, conditions.next().value, ids.KILL,
+          { amount: 888, comparisionType: 'AtMost', player: 3, unitId: 8 },
+      )
+      check(
+          t, conditions.next().value, ids.LEAST_KILLS,
+          { unitId: 8 },
+      )
+      check(
+          t, conditions.next().value, ids.LEAST_RESOURCES,
+          { resourceType: 'OreAndGas' },
+      )
+      check(
+          t, conditions.next().value, ids.LOWEST_SCORE,
+          { scoreType: 'KillsAndRazings' },
+      )
+      t.deepEqual(conditions.next().done, true)
+    } else {
+      check(
+          t, conditions.next().value, ids.MOST_KILLS,
+          { unitId: 34 },
+      )
+      check(
+          t, conditions.next().value, ids.MOST_RESOURCES,
+          { resourceType: 'Ore' },
+      )
+      check(
+          t, conditions.next().value, ids.OPPONENTS,
+          { comparisionType: 'Exactly', player: 18, amount: 5 },
+      )
+      check(
+          t, conditions.next().value, ids.SCORE,
+          { comparisionType: 'Exactly', player: 18, amount: 68, scoreType: 'Buildings' },
+      )
+      check(
+          t, conditions.next().value, ids.SWITCH,
+          { switchId: 4, switchState: 'Set' },
+      )
+      t.deepEqual(conditions.next().done, true)
+      break
+    }
+    first = false
+  }
+})
+
+test('Trigger actions', async t => {
+  const map = await getMap('triggers.chk')
+  t.plan(52 * 2 + 1)
+  const ids = Chk.actionIds()
+  const check = (t, act, id, paramsCompare) => {
+    t.deepEqual(act.id(), id)
+    const paramsIn = act.params()
+    let params = {}
+    for (const [k, v] of Object.entries(paramsIn).filter(([key, val]) => val !== undefined)) {
+      params[k] = v
+    }
+    t.deepEqual(params, paramsCompare)
+  }
+  const firstTrigger = map.triggers()[Symbol.iterator]().next().value
+  const actions = firstTrigger.actions()
+  check(
+      t, actions.next().value, ids.CENTER_VIEW,
+      { location: 9 },
+  )
+  check(
+      t, actions.next().value, ids.COMMENT,
+      { text: 'comment test 123' },
+  )
+  check(
+      t, actions.next().value, ids.CREATE_UNIT,
+      { unitId: 1, unitAmount: 92, location: 9, player: 5 },
+  )
+  check(
+      t, actions.next().value, ids.CREATE_UNIT_WITH_PROPERTIES,
+      { unitId: 1, unitAmount: 92, location: 9, player: 5 },
+  )
+  check(
+      t, actions.next().value, ids.DEFEAT,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.DISPLAY_TEXT,
+      { text: 'display text 1', alwaysDisplay: true },
+  )
+  check(
+      t, actions.next().value, ids.DISPLAY_TEXT,
+      { text: 'display\r\ntext\r\n2', alwaysDisplay: false },
+  )
+  check(
+      t, actions.next().value, ids.DRAW,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.GIVE_UNIT,
+      { unitId: 124, unitAmount: 0, location: 9, player: 5, destPlayer: 6 },
+  )
+  check(
+      t, actions.next().value, ids.KILL_UNIT,
+      { unitId: 124, player: 5 },
+  )
+  check(
+      t, actions.next().value, ids.KILL_UNIT_AT_LOCATION,
+      { unitId: 124, unitAmount: 0, location: 9, player: 5 },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_CONTROL_AT_LOCATION,
+      { unitId: 124, location: 9, text: 'lb ctrl@' },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_CONTROL,
+      { unitId: 124, text: 'lb ctrl' },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_GREED,
+      { amount: 6666 },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_KILLS,
+      { unitId: 124, text: 'lb kill' },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_POINTS,
+      { scoreType: 'Custom', text: 'lb points' },
+  )
+  check(
+      t, actions.next().value, ids.LEADERBOARD_RESOURCES,
+      { resourceType: 'OreAndGas', text: 'lb $' },
+  )
+  check(
+      t, actions.next().value, ids.MINIMAP_PING,
+      { location: 4 },
+  )
+  check(
+      t, actions.next().value, ids.SET_UNIT_ENERGY,
+      { amount: 66, player: 5, location: 4, unitId: 124, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.SET_UNIT_HANGAR,
+      { amount: 4, player: 5, location: 4, unitId: 124, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.SET_UNIT_HP,
+      { amount: 55, player: 5, location: 4, unitId: 124, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.SET_UNIT_RESOURCE,
+      { amount: 555, player: 5, location: 4, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.SET_UNIT_SHIELDS,
+      { amount: 55, player: 5, location: 4, unitId: 124, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.MOVE_LOCATION,
+      { movedLocation: 3, location: 4, player: 5, unitId: 124 },
+  )
+  check(
+      t, actions.next().value, ids.MOVE_UNIT,
+      { destLocation: 3, location: 4, player: 5, unitId: 124, unitAmount: 6 },
+  )
+  check(
+      t, actions.next().value, ids.MUTE_UNIT_SPEECH,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.ISSUE_ORDER,
+      { location: 6, unitOrder: 'Patrol', player: 2, unitId: 32, destLocation: 3 },
+  )
+  check(
+      t, actions.next().value, ids.PAUSE,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.PAUSE_COUNTDOWN_TIMER,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.PLAY_WAV,
+      { soundFile: 'sound\\Bullet\\DragBull.wav', time: 1448 },
+  )
+  check(
+      t, actions.next().value, ids.PRESERVE_TRIGGER,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.REMOVE_UNIT,
+      { unitId: 32, player: 2 },
+  )
+  check(
+      t, actions.next().value, ids.REMOVE_UNIT_AT_LOCATION,
+      { unitId: 32, player: 2, location: 6, unitAmount: 6, },
+  )
+  check(
+      t, actions.next().value, ids.RUN_AI_SCRIPT,
+      { aiScript: 0x2b566932 },
+  )
+  check(
+      t, actions.next().value, ids.RUN_AI_SCRIPT_AT_LOCATION,
+      { aiScript: 0x544d4578, location: 6 },
+  )
+  check(
+      t, actions.next().value, ids.SET_ALLIANCE,
+      { player: 2, allianceStatus: 'AlliedVictory' },
+  )
+  check(
+      t, actions.next().value, ids.SET_COUNTDOWN_TIMER,
+      { amount: 75, modifierType: 'Subtract' },
+  )
+  check(
+      t, actions.next().value, ids.SET_DEATHS,
+      { amount: 5555, modifierType: 'Add', unitId: 32, player: 2 },
+  )
+  check(
+      t, actions.next().value, ids.SET_DOODAD_STATE,
+      { location: 6, state: 'Toggle', unitId: 7, player: 2 },
+  )
+  check(
+      t, actions.next().value, ids.SET_INVINCIBILITY,
+      { location: 6, state: 'Set', unitId: 32, player: 2 },
+  )
+  check(
+      t, actions.next().value, ids.SET_MISSION_OBJECTIVES,
+      { text: 'mission objective text' },
+  )
+  check(
+      t, actions.next().value, ids.SET_NEXT_SCENARIO,
+      { text: 'nextmap.scx' },
+  )
+  check(
+      t, actions.next().value, ids.SET_RESOURCES,
+      { player: 2, modifierType: 'Set', amount: 5555, resourceType: 'OreAndGas'},
+  )
+  check(
+      t, actions.next().value, ids.SET_SCORE,
+      { player: 2, modifierType: 'Add', amount: 5555, scoreType: 'Total'},
+  )
+  check(
+      t, actions.next().value, ids.SET_SWITCH,
+      { switchId: 10, switchState: 'Randomize' },
+  )
+  check(
+      t, actions.next().value, ids.TALKING_PORTRAIT,
+      { unitId: 1, time: 75, },
+  )
+  check(
+      t, actions.next().value, ids.TRANSMISSION,
+      {
+        alwaysDisplay: true,
+        text: 'transmission text',
+        unitId: 1,
+        location: 6,
+        modifierType: 'Add', 
+        amount: 5555,
+        soundFile: 'sound\\Bullet\\DragBull.wav',
+        time: 1448,
+      },
+  )
+  check(
+      t, actions.next().value, ids.UNMUTE_UNIT_SPEECH,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.UNPAUSE,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.UNPAUSE_COUNTDOWN_TIMER,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.VICTORY,
+      { },
+  )
+  check(
+      t, actions.next().value, ids.WAIT,
+      { time: 8500 },
+  )
+  t.deepEqual(actions.next().done, true)
+})
