@@ -510,6 +510,29 @@ module.exports = class Chk {
     return this._triggers
   }
 
+  isEudMap() {
+    for (const trigger of this.triggers()) {
+      const bytes = trigger.rawByteView()
+      for (let i = 0, pos = 0; i < 0x10; i++, pos += 0x14) {
+        if (bytes[pos + 0xf] === 0xf && bytes[pos + 0xe] < 0xc) {
+          const player = bytes[pos + 0x4]
+          if (player === 0xc || player > 0x1a || bytes.readUInt16LE(pos + 0xc) > 0xe8) {
+            return true
+          }
+        }
+      }
+      for (let i = 0, pos = 0x140; i < 0x40; i++, pos += 0x20) {
+        if (bytes[pos + 0x1a] === 0x2d && bytes[pos + 0x1b] < 0xc) {
+          const player = bytes[pos + 0x10]
+          if (player === 0xc || player > 0x1a || bytes.readUInt16LE(pos + 0x18) > 0xe8) {
+            return true
+          }
+        }
+      }
+    }
+    return false
+  }
+
   static actionIds() {
     return triggers.actionIds
   }

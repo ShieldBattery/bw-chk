@@ -59,7 +59,7 @@ checkmaps(process.argv[2])
       console.log('scm-extractor errors: ' + scmExErrs)
       console.log('bw-chk errors: ' + chkErrs)
     }
-    mapQueue.drain = finish
+    mapQueue.drain(finish)
     if (mapQueue.idle()) {
       finish()
     }

@@ -18,7 +18,7 @@ from the `.scx` or `.scm` files first.
 
 ### Notable missing features
 - Map-specific player colors (The image rendering functionality has hardcoded colors)
-- Triggers (And locations/sounds/etc. related)
+- Locations
 - Tech restrictions
 - Special unit flags
 
@@ -152,6 +152,11 @@ image() calls will cache some of the file parsing work.
 Returns an object which is `Iterable`, producting `Trigger` objects.
 The returned object also has `size` property for retrieving total amount of triggers,
 and `iterateFrom(n)` method for iterating starting from `n`th trigger.
+
+### chk.isEudMap()
+Iterates through triggers of the map, returning `true`, if any of the triggers use EUD
+conditions or actions. The check is done in a way that is 100% compatible with SC:R's check,
+which includes checking conditions and actions that could never be executed by the game.
 
 ### static Chk.fsFileAccess(directory)
 Creates a FileAccess object, which can be passed to `chk.image()` for accessing bw's files which
