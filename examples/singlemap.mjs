@@ -52,10 +52,15 @@ async function printMapInfo(map) {
         const image = new PNG({
           width: minimapWidth,
           height: minimapHeight,
-          inputHasAlpha: false,
+          inputColorType: 2,
         })
         image.data = minimap
-        image.pack().pipe(fs.createWriteStream('minimap.png'))
+        const out = fs.createWriteStream('minimap.png')
+        image.pack().pipe(out)
+        await new Promise((res, rej) => {
+          out.on('finish', res)
+          out.on('error', rej)
+        })
       } catch (err) {
         console.log('Could not create minimap image: ' + err)
       }

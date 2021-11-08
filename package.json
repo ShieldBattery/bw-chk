@@ -22,15 +22,15 @@
   "author": "Markus Heikkinen <ittevien@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "bl": "^4.0.3",
+    "bl": "^5.0.0",
     "iconv-lite": "^0.6.2"
   },
   "devDependencies": {
     "async": "^3.2.0",
     "copyfiles": "^2.4.1",
-    "eslint": "^7.16.0",
+    "eslint": "^8.2.0",
     "glob": "^7.1.6",
-    "pngjs": "^2.3.0",
+    "pngjs": "^6.0.0",
     "rimraf": "^3.0.2",
     "scm-extractor": "^1.0.6",
     "tape": "^5.0.1"

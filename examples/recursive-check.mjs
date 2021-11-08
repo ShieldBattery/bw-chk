@@ -93,7 +93,7 @@ function checkmap(filename) {
       const image = new PNG({
         width: map.size[0] * mul,
         height: map.size[1] * mul,
-        inputHasAlpha: false,
+        inputColorType: 2,
       })
       image.data = minimap
       const imageFilename = `images/${path.basename(filename)}_x${mul}.png`
