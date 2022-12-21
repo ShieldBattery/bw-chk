@@ -1,7 +1,4 @@
 type NameOrUnknown<T> = T | "Unknown";
-type PossiblyUndefined<T> = {
-    [P in keyof T]: T[P] | undefined;
-};
 
 type ScoreType =
     | "Total"
@@ -13,7 +10,7 @@ type ScoreType =
     | "KillsAndRazings"
     | "Custom";
 
-type TriggerActionParams = PossiblyUndefined<{
+type TriggerActionParams = Partial<{
     location: number;
     destLocation: number;
     movedLocation: number;
@@ -36,7 +33,7 @@ type TriggerActionParams = PossiblyUndefined<{
     state: NameOrUnknown<"Set" | "Clear" | "Toggle">;
 }>;
 
-type TriggerConditionParams = PossiblyUndefined<{
+type TriggerConditionParams = Partial<{
     location: number;
     player: number;
     amount: number;
