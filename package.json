@@ -3,6 +3,7 @@
   "version": "1.3.0",
   "description": "Parses uncompressed Broodwar map files (scenario.chk).",
   "main": "./index.js",
+  "types": "./index.d.ts",
   "engines": {
     "node": ">= 12.17.0"
   },
