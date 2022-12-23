@@ -32,12 +32,6 @@ jobs:
         env:
           NEW_VERSION: ${{ github.event.inputs.release-version }}
 
-      - name: Upload prebuild artifacts
-        uses: actions/upload-artifact@v2
-        with:
-          name: prebuilds
-          path: prebuilds/
-
       - name: Commit changed files and create tag
         run: |
           git add "package.json"
