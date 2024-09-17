@@ -130,7 +130,7 @@ type ForcePlayer = {
 type Force = {
     name: string;
     flags: number;
-    players: number[];
+    players: ForcePlayer[];
 };
 
 export default class Chk {
